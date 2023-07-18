@@ -15,7 +15,8 @@ class Transformation:
             self.sim = None
             self.next_transformation = f
         else:
-            raise ValueError("Transformation must either act on another Transformation or on a SimSnap")
+            raise ValueError(
+                "Transformation must either act on another Transformation or on a SimSnap")
 
         self.applied = False
         if not defer:
@@ -48,8 +49,6 @@ class Transformation:
         if self.next_transformation is not None:
             self.next_transformation.apply_inverse_to(f)
 
-
-
     def apply(self, force=True):
 
         if self.next_transformation is not None:
@@ -69,7 +68,7 @@ class Transformation:
 
         return f
 
-    def revert(self):
+    def revert(self) -> None:
         if not self.applied:
             raise RuntimeError("Transformation has not been applied")
         self._revert(self.sim)

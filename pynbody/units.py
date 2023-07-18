@@ -440,6 +440,11 @@ class CompositeUnit(UnitBase):
         self._bases = bases
         self._powers = powers
 
+    @property
+    def v(self):
+        return float(self)
+
+
     def latex(self):
         r"""Returns a LaTeX representation of this unit.
 

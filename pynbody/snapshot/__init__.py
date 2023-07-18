@@ -354,6 +354,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption):
             if not self.lazy_off:
                 if not self.lazy_load_off:
                     self.__load_if_required(name)
+
                 if not self.lazy_derive_off:
                     self.__derive_if_required(name)
 
@@ -830,6 +831,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption):
         anc = self.ancestor
 
         pre_keys = set(anc.keys())
+        my_pre_keys = set(self.keys())
 
         # the following function builds a dictionary mapping families to a set of the
         # named arrays defined for them.
@@ -853,6 +855,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption):
 
             # Find out what was loaded
             new_keys = set(anc.keys()) - pre_keys
+
             new_fam_keys = fk()
             for fami in new_fam_keys:
                 new_fam_keys[fami] = new_fam_keys[fami] - pre_fam_keys[fami]
@@ -868,6 +871,13 @@ class SimSnap(ContainerWithPhysicalUnitsOption):
                     if not units.has_units(anc[f][v]):
                         anc[f][v].units = anc._default_units_for(v)
                     anc._autoconvert_array_unit(anc[f][v])
+
+            my_new_keys = set(self.keys())-my_pre_keys
+            if "pos" in my_new_keys or "vel" in my_new_keys and "pos" not in self.keys() and "vel" not in self.keys():
+                if hasattr(anc,"lazy_orient"):
+                    print("Applying lazy orientate")
+                    anc.lazy_orient(self)
+
 
 
 

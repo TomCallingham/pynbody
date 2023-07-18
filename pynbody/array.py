@@ -163,6 +163,11 @@ class SimArray(np.ndarray):
     _ufunc_registry = {}
 
     @property
+    def v(self):
+        """Returns numpy array view"""
+        return self.view(np.ndarray)
+
+    @property
     def ancestor(self):
         """Provides the basemost SimArray that an IndexedSimArray is based on."""
         return self
@@ -846,6 +851,11 @@ def _comparison_units(*a):
 
 
 class IndexedSimArray:
+
+    @property
+    def v(self):
+        """Returns numpy array view"""
+        return self.view(np.ndarray)
 
     @property
     def derived(self):
