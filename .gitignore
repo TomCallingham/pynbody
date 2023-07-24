@@ -8,3 +8,8 @@ testdata*
 docs/_static/*png
 docs/*png
 .DS_Store
+#Callingham Add
+*.so
+*.c
+typings/
+pynbody.egg-info/

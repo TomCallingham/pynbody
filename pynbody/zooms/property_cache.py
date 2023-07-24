@@ -1,0 +1,87 @@
+import numpy as np
+from collections.abc import Callable
+import contextlib
+import os
+from functools import wraps
+import h5py
+from pynbody.array import SimArray
+
+
+from .agama_potential import action_angles_props, calc_action_angles
+
+
+def get_fam_str(sim) -> str:
+    fams = sim.families()
+    if len(fams) > 1:
+        raise AttributeError("Only one family at a time for this property")
+    return str(fams[0])
+
+
+def cache_prop(func) -> Callable:
+    @wraps(func)
+    def wrapper(sim):
+        base = sim.ancestor if hasattr(sim, "ancestor") else sim
+        fam = get_fam_str(sim)
+        func_str = func.__name__
+        if func_str in base.cached_props[fam]:
+            # print("loading from cache")
+            return load_cached(sim, fam, func_str)
+        elif func_str in action_angles_props:
+            calc_action_angles(sim, fam)
+            return load_cached(sim, fam, func_str)
+        result = func(sim)
+        print(f"saving {func_str}...")
+        save_cached(sim, func_str, fam, result)
+        print("saved!")
+        return result
+    return wrapper
+
+
+def load_cached(sim, fam, func_str) -> SimArray:
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
+    with h5py.File(file, "r") as hf:
+        result = hf[func_str]
+        result_units = str(result.attrs["units"])
+        result = SimArray(result[:])
+    result.sim = sim
+    if result_units != "NoUnit()":
+        result.units = result_units
+    return result
+
+
+def load_cached_props(sim) -> dict:
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    fams = [str(f) for f in list(sim.families())]
+    props = {}
+    for fam in fams:
+        file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
+        print(file)
+        if not os.path.isfile(file):
+            props[fam] = []
+        else:
+            with h5py.File(file, "r") as hf:
+                props[fam] = list(hf.keys())
+    return props
+
+
+def save_cached(sim, func_str, fam, result) -> SimArray:
+    result_units = result.units
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
+    with h5py.File(file, "a") as hf:
+        dset = hf.create_dataset(f"{func_str}", data=result.view(np.ndarray))
+        dset.attrs["units"] = str(result_units)
+    base.cached_props[fam].append(func_str)
+    return result
+
+
+def del_cached_props(sim, fam, del_props) -> None:
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
+    print(f"deleting {del_props} for {fam}")
+    with h5py.File(file, "a") as hf:
+        for p in del_props:
+            print(f"deleting {p}")
+            with contextlib.suppress(KeyError):
+                del hf[p]

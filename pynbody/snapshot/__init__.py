@@ -872,10 +872,11 @@ class SimSnap(ContainerWithPhysicalUnitsOption):
                         anc[f][v].units = anc._default_units_for(v)
                     anc._autoconvert_array_unit(anc[f][v])
 
-            my_new_keys = set(self.keys())-my_pre_keys
-            if "pos" in my_new_keys or "vel" in my_new_keys and "pos" not in self.keys() and "vel" not in self.keys():
+            current_keys= self.keys()
+            my_new_keys = set(current_keys)-my_pre_keys
+
+            if "pos" in my_new_keys or "vel" in my_new_keys and "pos" not in current_keys and "vel" not in current_keys:
                 if hasattr(anc,"lazy_orient"):
-                    print("Applying lazy orientate")
                     anc.lazy_orient(self)
 
 
