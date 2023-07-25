@@ -233,3 +233,4 @@ auriga_bad_keys = ['V_lum_den', 'dm', 'OI', 'i_mag', 'r_mag', 'rho_ne', 'nxh',
                    'b_lum_den', 'u_lum_den', 'hetot', 'HIeos', 'HII', 'sxh',
                    'V_mag', 'v_mag', 'k_lum_den', 'h_mag', 'b_mag', 'H_lum_den', 'HI',
                    'nexh', 'mgfe', 'doppler_redshift', 'oxh', 'halpha', 'K_mag']
+from . import auriga_attributes

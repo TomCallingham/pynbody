@@ -10,7 +10,7 @@ from pynbody.snapshot import FamilySubSnap
 kms = units.km / units.s
 kms2 = kms * kms
 
-# Zoom
+# TODO: Have units check? Or assume always physical units input
 
 
 @ZoomSnap.derived_quantity
@@ -18,7 +18,7 @@ kms2 = kms * kms
 def U(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
-    U_pot = SimArray(pot.potential(sim["pos"].view(np.ndarray)))  # units kpc check?
+    U_pot = SimArray(pot.potential(sim["pos"].view(np.ndarray)))
     U_pot.sim, U_pot.units = sim, kms2
     return U_pot
 
@@ -30,12 +30,21 @@ def E(sim) -> SimArray:
 
 
 @ZoomSnap.derived_quantity
-def Lp(sim) -> SimArray:
-    return np.sqrt((sim['L']**2) - (sim['Lz']**2))
+def L(sim) -> SimArray:
+    '''Magnitude of  Angular Momentum'''
+    L = SimArray(np.linalg.norm(sim["j"], axis=1))
+    L.sim, L.units = sim, sim["j"].units
+    return L
 
 
-@cache_prop
 @ZoomSnap.derived_quantity
+def Lperp(sim) -> SimArray:
+    '''Perpendicular component of Angular Momentum'''
+    return np.sqrt((sim['L']**2) - (sim['jz']**2))
+
+
+@ZoomSnap.derived_quantity
+@cache_prop
 def peri(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
@@ -45,8 +54,8 @@ def peri(sim) -> SimArray:
     return peri
 
 
-@cache_prop
 @ZoomSnap.derived_quantity
+@cache_prop
 def apo(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
@@ -122,55 +131,57 @@ def Lcirc_E(sim) -> SimArray:
 @ZoomSnap.derived_quantity
 @cache_prop
 def JR(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("JR should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def Jz(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("Jz should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def Jphi(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("Jphi should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def AR(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("AR should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def Az(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("Az should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def Aphi(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("Aphi should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def OR(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("OR should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def Oz(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("Oz should never be called directly!")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def Ophi(_) -> SimArray:
-    print("Never Used")
+    raise KeyError("Ophi should never be called directly!")
+
+# Derived from Action Angles
 
 
 @ZoomSnap.derived_quantity
@@ -180,13 +191,24 @@ def Jtot(sim) -> SimArray:
 
 
 @ZoomSnap.derived_quantity
-def Jd(sim) -> SimArray:
+def J_diamond(sim) -> SimArray:
     Jd = (sim["Jz"] - sim["JR"]) / sim["Jtot"]
     return Jd
 
 
 @ZoomSnap.derived_quantity
 def Jphi_Jtot(sim) -> SimArray:
+    '''Used in J_diamond'''
     return sim["Jphi"] / sim["Jtot"]
 
-# Auriga
+
+@ZoomSnap.derived_quantity
+def JR_Jtot(sim) -> SimArray:
+    '''Used in J_diamond'''
+    return sim["JR"] / sim["Jtot"]
+
+
+@ZoomSnap.derived_quantity
+def Jz_Jtot(sim) -> SimArray:
+    '''Used in J_diamond'''
+    return sim["Jz"] / sim["Jtot"]
