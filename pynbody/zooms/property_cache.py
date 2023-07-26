@@ -5,7 +5,8 @@ import os
 from functools import wraps
 import h5py
 from pynbody.array import SimArray
-
+from pynbody import family
+from pynbody.snapshot import FamilySubSnap
 
 from .agama_potential import action_angles_props, calc_action_angles
 
@@ -21,18 +22,16 @@ def cache_prop(func) -> Callable:
     @wraps(func)
     def wrapper(sim):
         base = sim.ancestor if hasattr(sim, "ancestor") else sim
+        print(f"Use cache: {base.use_cache}")
+        if not base.use_cache:
+            return func(sim)
         fam = get_fam_str(sim)
         func_str = func.__name__
         if func_str in base.cached_props[fam]:
-            # print("loading from cache")
-            return load_cached(sim, fam, func_str)
-        elif func_str in action_angles_props:
-            calc_action_angles(sim, fam)
+            print("loading from cache")
             return load_cached(sim, fam, func_str)
         result = func(sim)
-        print(f"saving {func_str}...")
         save_cached(sim, func_str, fam, result)
-        print("saved!")
         return result
     return wrapper
 
@@ -56,7 +55,6 @@ def load_cached_props(sim) -> dict:
     props = {}
     for fam in fams:
         file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
-        print(file)
         if not os.path.isfile(file):
             props[fam] = []
         else:
@@ -69,10 +67,14 @@ def save_cached(sim, func_str, fam, result) -> SimArray:
     result_units = result.units
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
     file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
+    print(f"saving {func_str}...")
     with h5py.File(file, "a") as hf:
+        if func_str in list(hf.keys()):
+            del hf[func_str]
         dset = hf.create_dataset(f"{func_str}", data=result.view(np.ndarray))
         dset.attrs["units"] = str(result_units)
     base.cached_props[fam].append(func_str)
+    print("saved!")
     return result
 
 
@@ -85,3 +87,32 @@ def del_cached_props(sim, fam, del_props) -> None:
             print(f"deleting {p}")
             with contextlib.suppress(KeyError):
                 del hf[p]
+
+
+family_dict = {'dm': family.dm, 'gas': family.gas, "star": family.star}
+
+
+def multiple_read(sim, data_dict, read_key, save=False) -> SimArray:
+    '''adds multiple properties to the sim at once, returning the chosen value'''
+    # TODO: This is currently for one family only
+    if save:
+        save_multiple_cached(sim, data_dict)
+    fam_str = get_fam_str(sim)
+    fam = family_dict[fam_str]
+    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    props = [p for p in list(data_dict.keys()) if p != read_key]
+    for p in props:
+        if p in base._family_arrays:
+            base._family_arrays[p][fam] = data_dict[p]
+        else:
+            base._family_arrays[p] = {fam: data_dict[p]}
+    return data_dict[read_key]
+
+
+def save_multiple_cached(sim, data_dict) -> None:
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    if not base.use_cache:
+        return
+    fam = get_fam_str(sim)
+    for func_str, result in data_dict.items():
+        save_cached(sim, func_str, fam, result)

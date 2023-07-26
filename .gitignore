@@ -13,3 +13,4 @@ docs/*png
 *.c
 typings/
 pynbody.egg-info/
+__pycache__/

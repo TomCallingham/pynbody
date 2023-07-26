@@ -4,6 +4,7 @@ import numpy as np
 import h5py
 from pynbody import units
 import pynbody
+from pynbody.array import SimArray
 
 # define the physical units used in the code: the choice below corresponds to
 # length scale = 1 kpc, velocity = 1 km/s, mass = 1 Msun
@@ -94,8 +95,7 @@ def agama_vcirc(Rspace, pot) -> np.ndarray:
     return vcirc
 
 
-def calc_action_angles(sim, fam, save=True) -> dict:
-    print("Calculating Action Angles")
+def calc_action_angles(sim, save=True, angles=True) -> dict:
 
     pos, vel = sim["pos"].view(np.ndarray), sim["vel"].view(np.ndarray)
     xyz = np.column_stack((pos, vel))
@@ -104,30 +104,26 @@ def calc_action_angles(sim, fam, save=True) -> dict:
     pot = base.potential
     J_finder = agama.ActionFinder(pot, interp=True)
     dyn = {}
-    Js, As, Os = J_finder(xyz, angles=True)
+    if angles:
+        print("Calculating Actions and Angles...")
+        Js, As, Os = J_finder(xyz, angles=True)
+        dyn['AR'], dyn["Az"], dyn["Aphi"] = As.T
+        dyn['OR'], dyn["Oz"], dyn["Ophi"] = Os.T
+    else:
+        print("Calculating just Actions...")
+        Js = J_finder(xyz, angles=False)
     dyn['JR'], dyn["Jz"], dyn["Jphi"] = Js.T
-    dyn['AR'], dyn["Az"], dyn["Aphi"] = As.T
-    dyn['OR'], dyn["Oz"], dyn["Ophi"] = Os.T
-    aa_units = {}
-    j_units = str(sim["pos"].units * sim["vel"].units)
-    o_units = str(1 / units.Gyr)
-    for p in ["JR", "Jz", "Jphi"]:
-        aa_units[p] = j_units
-    for p in ["AR", "Az", "Aphi"]:
-        aa_units[p] = "NoUnit()"
-    for p in ["OR", "Oz", "Ophi"]:
-        aa_units[p] = o_units
-    if save:
-        save_action_angles(sim, fam, dyn, aa_units)
+    # j_units = str(sim["pos"].units * sim["vel"].units)
+    j_units = units.kpc * units.km / units.s
+    o_units = 1 / units.Gyr
+
+    for p in list(dyn.keys()):
+        x = SimArray(dyn[p])
+        x.sim = sim
+        if p in ["JR", "Jz", "Jphi"]:
+            x.units = j_units
+        elif p in ["OR", "Oz", "Ophi"]:
+            x.units = o_units
+        dyn[p] = x
+    print("Calculated!")
     return dyn
-
-
-def save_action_angles(sim, fam, dyn, aa_units) -> None:
-    print("Saving Action Angles")
-    base = sim.ancestor if hasattr(sim, "ancestor") else sim
-    file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
-    with h5py.File(file, "a") as hf:
-        for xkey in action_angles_props:
-            dset = hf.create_dataset(f"{xkey}", data=dyn[xkey])
-            dset.attrs["units"] = aa_units[xkey]
-    base.cached_props[fam] += action_angles_props

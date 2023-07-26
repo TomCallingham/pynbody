@@ -1,7 +1,7 @@
 import numpy as np
 from .zoom import ZoomSnap
-from .property_cache import cache_prop
-from .agama_potential import agama_vcirc
+from .property_cache import cache_prop, multiple_read
+from .agama_potential import agama_vcirc, calc_action_angles
 from pynbody import units
 from pynbody.array import SimArray
 from pynbody.snapshot import FamilySubSnap
@@ -43,26 +43,30 @@ def Lperp(sim) -> SimArray:
     return np.sqrt((sim['L']**2) - (sim['jz']**2))
 
 
-@ZoomSnap.derived_quantity
-@cache_prop
-def peri(sim) -> SimArray:
+def calc_peri_apo(sim) -> dict[str, SimArray]:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
     E, L = sim['E'].view(np.ndarray), sim['L'].view(np.ndarray)
     peri = SimArray(pot.Rperiapo(np.column_stack((E, L)))[:, 0])
     peri.sim, peri.units = sim, units.kpc
-    return peri
+    apo = SimArray(pot.Rapoapo(np.column_stack((E, L)))[:, 1])
+    apo.sim, apo.units = sim, units.kpc
+    extreme_dict = {"peri": peri, "apo": apo}
+    return extreme_dict
+
+
+@ZoomSnap.derived_quantity
+@cache_prop
+def peri(sim) -> SimArray:
+    extreme_dict = calc_peri_apo(sim)
+    return multiple_read(sim, extreme_dict, read_key="peri")
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
 def apo(sim) -> SimArray:
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
-    pot = base.potential
-    E, L = sim['E'].view(np.ndarray), sim['L'].view(np.ndarray)
-    apo = SimArray(pot.Rperiapo(np.column_stack((E, L)))[:, 1])
-    apo.sim, apo.units = sim, units.kpc
-    return apo
+    extreme_dict = calc_peri_apo(sim)
+    return multiple_read(sim, extreme_dict, read_key="apo")
 
 
 @ZoomSnap.derived_quantity
@@ -89,15 +93,15 @@ def RcircL(sim) -> SimArray:
     return RcircL
 
 
-@cache_prop
 @ZoomSnap.derived_quantity
+@cache_prop
 def circ(sim) -> SimArray:
     circ = sim['Lz'] / sim['Lcirc_E']
     return circ
 
 
-@cache_prop
 @ZoomSnap.derived_quantity
+@cache_prop
 def Tcirc(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
@@ -130,56 +134,66 @@ def Lcirc_E(sim) -> SimArray:
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def JR(_) -> SimArray:
-    raise KeyError("JR should never be called directly!")
+def JR(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=False)
+    return multiple_read(sim, aa_dict, "JR", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def Jz(_) -> SimArray:
-    raise KeyError("Jz should never be called directly!")
+def Jz(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=False)
+    return multiple_read(sim, aa_dict, "Jz", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def Jphi(_) -> SimArray:
-    raise KeyError("Jphi should never be called directly!")
+def Jphi(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=False)
+    return multiple_read(sim, aa_dict, "Jphi", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def AR(_) -> SimArray:
-    raise KeyError("AR should never be called directly!")
+def AR(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=True)
+    return multiple_read(sim, aa_dict, "AR", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def Az(_) -> SimArray:
-    raise KeyError("Az should never be called directly!")
+def Az(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=True)
+    return multiple_read(sim, aa_dict, "Az", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def Aphi(_) -> SimArray:
-    raise KeyError("Aphi should never be called directly!")
+def Aphi(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=True)
+    return multiple_read(sim, aa_dict, "Aphi", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def OR(_) -> SimArray:
-    raise KeyError("OR should never be called directly!")
+def OR(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=True)
+    return multiple_read(sim, aa_dict, "OR", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def Oz(_) -> SimArray:
-    raise KeyError("Oz should never be called directly!")
+def Oz(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=True)
+    return multiple_read(sim, aa_dict, "Oz", save=True)
 
 
 @ZoomSnap.derived_quantity
 @cache_prop
-def Ophi(_) -> SimArray:
-    raise KeyError("Ophi should never be called directly!")
+def Ophi(sim) -> SimArray:
+    aa_dict = calc_action_angles(sim, angles=True)
+    return multiple_read(sim, aa_dict, "Ophi", save=True)
+
 
 # Derived from Action Angles
 

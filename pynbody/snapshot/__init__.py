@@ -339,7 +339,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption):
 
         if name in list(self.keys()):
             self._dependency_tracker.touching(name)
-
             # Ensure that any underlying dependencies on 1D positions and velocities
             # are forwarded to 3D dependencies as well
             nd_name = self._array_name_1D_to_ND(name)

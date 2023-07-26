@@ -6,12 +6,15 @@ from pynbody.snapshot import SimSnap
 
 
 class ZoomSnap:
-    def __init__(self, orientate=True) -> None:
-        # self.analysis_folder = ""
+    def __init__(self, orientate=True, use_cache=True, analysis_folder=None) -> None:
+        self.analysis_folder = analysis_folder
+        self.use_cache = use_cache if analysis_folder is not None else False
         if orientate:
             lazy_orientate_snap(self)
         self._pot = None
         self._cache = None
+        # As we ALWAYS want physical units? Can this be turned on in config?
+        # Nothing but bugs :(
         self.physical_units()
 
     @property
@@ -26,8 +29,8 @@ class ZoomSnap:
             self._cache = load_cached_props(self)
         return self._cache
 
-    def del_cached_keys(self, del_keys) -> None:
-        del_cached_props(self, del_keys)
+    def del_cached_keys(self, fam_str, del_keys) -> None:
+        del_cached_props(self, fam_str, del_keys)
 
     @classmethod
     def derived_quantity(cls, fn):
@@ -36,6 +39,7 @@ class ZoomSnap:
         SimSnap._derived_quantity_registry[cls][fn.__name__] = fn
         fn.__stable__ = False
         return fn
+
 
     # @property
     # def host(self) -> HostData:
