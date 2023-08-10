@@ -22,13 +22,11 @@ def cache_prop(func) -> Callable:
     @wraps(func)
     def wrapper(sim):
         base = sim.ancestor if hasattr(sim, "ancestor") else sim
-        print(f"Use cache: {base.use_cache}")
         if not base.use_cache:
             return func(sim)
         fam = get_fam_str(sim)
         func_str = func.__name__
         if func_str in base.cached_props[fam]:
-            print("loading from cache")
             return load_cached(sim, fam, func_str)
         result = func(sim)
         save_cached(sim, func_str, fam, result)

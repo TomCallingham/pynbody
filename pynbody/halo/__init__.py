@@ -378,6 +378,7 @@ from pynbody.halo.subfindhdf import (
     Gadget4SubfindHDFCatalogue,
     SubFindHDFHaloCatalogue,
 )
+from pynbody.zooms.auriga import AurigaSubfindHDFCatalogue
 
 
 def _get_halo_classes():
@@ -388,7 +389,7 @@ def _get_halo_classes():
         RockstarCatalogue, SubfindCatalogue, SubFindHDFHaloCatalogue,
         NewAdaptaHOPCatalogue, AdaptaHOPCatalogue,
         RockstarIntermediateCatalogue, HOPCatalogue, Gadget4SubfindHDFCatalogue,
-        ArepoSubfindHDFCatalogue
+        ArepoSubfindHDFCatalogue, AurigaSubfindHDFCatalogue
     ]
 
     return _halo_classes

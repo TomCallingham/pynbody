@@ -216,6 +216,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption):
         self.properties = simdict.SimDict({})
         self._file_units_system = []
 
+        print("Force physical_units on!")
+        self.physical_units()
+
     ############################################
     # THE BASICS: SIMPLE INFORMATION
     ############################################
@@ -2028,10 +2031,11 @@ def new(n_particles=0, order=None, **families):
 
 def _get_snap_classes():
     from . import ascii, gadget, gadgethdf, grafic, nchilada, ramses, tipsy
+    from ..zooms import auriga
 
     _snap_classes = [gadgethdf.GadgetHDFSnap, gadgethdf.SubFindHDFSnap, gadgethdf.EagleLikeHDFSnap,
                      nchilada.NchiladaSnap, gadget.GadgetSnap,
                      tipsy.TipsySnap, ramses.RamsesSnap, grafic.GrafICSnap,
-                     ascii.AsciiSnap]
+                     ascii.AsciiSnap, auriga.AurigaLikeHDFSnap]
 
     return _snap_classes

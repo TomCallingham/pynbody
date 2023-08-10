@@ -14,3 +14,4 @@ docs/*png
 typings/
 pynbody.egg-info/
 __pycache__/
+config.ini
