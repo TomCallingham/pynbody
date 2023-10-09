@@ -25,6 +25,7 @@ from .. import snapshot, util
 
 logger = logging.getLogger("pynbody.halo")
 
+
 class DummyHalo(snapshot.ContainerWithPhysicalUnitsOption):
 
     def __init__(self):
@@ -62,7 +63,8 @@ class Halo(snapshot.IndexedSubSnap):
 
         return self._halo_catalogue.is_subhalo(self._halo_id, otherhalo._halo_id)
 
-    def physical_units(self, distance='kpc', velocity='km s^-1', mass='Msol', persistent=True, convert_parent=True):
+    def physical_units(self, distance='kpc', velocity='km s^-1',
+                       mass='Msol', persistent=True, convert_parent=True):
         """
         Converts all array's units to be consistent with the
         distance, velocity, mass basis units specified.
@@ -107,7 +109,7 @@ class Halo(snapshot.IndexedSubSnap):
 
 # ----------------------------#
 # General HaloCatalogue class #
-#-----------------------------#
+# -----------------------------#
 
 class HaloCatalogue(snapshot.ContainerWithPhysicalUnitsOption):
 
@@ -122,10 +124,10 @@ class HaloCatalogue(snapshot.ContainerWithPhysicalUnitsOption):
 
     def calc_item(self, i):
         if i in self._halos:  # and self._halos[i]() is not None :
-            if isinstance(self._halos[i],DummyHalo):
+            if isinstance(self._halos[i], DummyHalo):
                 try:
                     return self._get_halo(i)
-                except:
+                except BaseException:
                     return self._halos[i]
             else:
                 return self._halos[i]
@@ -142,7 +144,8 @@ class HaloCatalogue(snapshot.ContainerWithPhysicalUnitsOption):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            for x in self._halo_generator(item.start,item.stop) : pass
+            for x in self._halo_generator(item.start, item.stop):
+                pass
             indices = item.indices(len(self._halos))
             res = [self.calc_item(i) for i in range(*indices)]
             return res
@@ -153,18 +156,19 @@ class HaloCatalogue(snapshot.ContainerWithPhysicalUnitsOption):
     def base(self):
         return self._base()
 
-    def _halo_generator(self, i_start=None, i_stop=None) :
-        if len(self) == 0 : return
+    def _halo_generator(self, i_start=None, i_stop=None):
+        if len(self) == 0:
+            return
         if i_start is None or i_stop is None:
             try:
                 self[0]
                 one_indexed = False
-            except KeyError :
+            except KeyError:
                 one_indexed = True
 
         if i_start is None:
             i = 1 if one_indexed else 0
-        else :
+        else:
             i = i_start
 
         if i_stop is None:
@@ -173,16 +177,18 @@ class HaloCatalogue(snapshot.ContainerWithPhysicalUnitsOption):
         while True:
             try:
                 yield self[i]
-                i+=1
-                if i!=i_stop and len(self[i]) == 0: continue
+                i += 1
+                if i != i_stop and len(self[i]) == 0:
+                    continue
             except RuntimeError:
                 break
-            if i == i_stop: return
+            if i == i_stop:
+                return
 
     def _init_iord_to_fpos(self):
         if not hasattr(self, "_iord_to_fpos"):
             if 'iord' in self.base.loadable_keys():
-                self._iord_to_fpos = np.empty(self.base['iord'].max()+1,dtype=np.int64)
+                self._iord_to_fpos = np.empty(self.base['iord'].max() + 1, dtype=np.int64)
                 self._iord_to_fpos[self.base['iord']] = np.arange(len(self.base))
             else:
                 warnings.warn("No iord array available; assuming halo catalogue is using sequential particle IDs",
@@ -227,7 +233,8 @@ class HaloCatalogue(snapshot.ContainerWithPhysicalUnitsOption):
     def _can_run(self):
         return False
 
-    def physical_units(self, distance='kpc', velocity='km s^-1', mass='Msol', persistent=True, convert_parent=False):
+    def physical_units(self, distance='kpc', velocity='km s^-1',
+                       mass='Msol', persistent=True, convert_parent=False):
         """
         Converts all array's units to be consistent with the
         distance, velocity, mass basis units specified.
@@ -247,7 +254,11 @@ class HaloCatalogue(snapshot.ContainerWithPhysicalUnitsOption):
            *convert_parent*: boolean (default = None); ignored for HaloCatalogue objects
 
         """
-        self.base.physical_units(distance=distance, velocity=velocity, mass=mass, persistent=persistent)
+        self.base.physical_units(
+            distance=distance,
+            velocity=velocity,
+            mass=mass,
+            persistent=persistent)
 
         # Convert all instantiated subhalos
         for halo in self._halos.values():
@@ -265,6 +276,7 @@ class GrpCatalogue(HaloCatalogue):
     A generic catalogue using a .grp file to specify which particles
     belong to which group.
     """
+
     def __init__(self, sim, array='grp', ignore=None, **kwargs):
         """Construct a GrpCatalogue, extracting halos based on a simulation-wide integer array with their IDs
 
@@ -272,22 +284,22 @@ class GrpCatalogue(HaloCatalogue):
         *array* - the name of the array which should be present, loadable or derivable across the simulation
         *ignore* - a special value indicating "no halo", or None if no such special value is defined
         """
-        sim[array] # trigger lazy-loading and/or kick up a fuss if unavailable
+        sim[array]  # trigger lazy-loading and/or kick up a fuss if unavailable
         self._halos = {}
         self._array = array
         self._sorted = None
         self._ignore = ignore
-        HaloCatalogue.__init__(self,sim)
+        HaloCatalogue.__init__(self, sim)
 
     def __len__(self):
         if self._ignore is None:
             N = self.base[self._array].max()
         else:
             N = self.base[self._array]
-            N = N[N!=self._ignore]
+            N = N[N != self._ignore]
             N = N.max()
-        if N<0:
-            N=0
+        if N < 0:
+            N = 0
         return N
 
     def precalculate(self):
@@ -297,7 +309,8 @@ class GrpCatalogue(HaloCatalogue):
         self._sorted = np.argsort(
             self.base[self._array], kind='mergesort')  # mergesort for stability
         self._unique_i = np.unique(self.base[self._array])
-        self._boundaries = np.searchsorted(self.base[self._array][self._sorted],self._unique_i)
+        self._boundaries = np.searchsorted(
+            self.base[self._array][self._sorted], self._unique_i)
 
     def get_group_array(self, family=None):
         if family is not None:
@@ -317,10 +330,10 @@ class GrpCatalogue(HaloCatalogue):
             return index
         else:
             # pre-calculated
-            if not np.isin(i,self._unique_i):
+            if not np.isin(i, self._unique_i):
                 raise no_exist
 
-            match = np.where(self._unique_i==i)[0]
+            match = np.where(self._unique_i == i)[0]
 
             start = self._boundaries[match][0]
 
@@ -332,14 +345,12 @@ class GrpCatalogue(HaloCatalogue):
 
             return self._sorted[start:end]
 
-
     def _get_halo(self, i):
         x = Halo(i, self, self.base, self._get_halo_indices(i))
         if len(x) == 0:
             raise ValueError("Halo %s does not exist" % (str(i)))
         x._descriptor = "halo_" + str(i)
         return x
-
 
     def load_copy(self, i):
         """Load the a fresh SimSnap with only the particle in halo i"""
@@ -352,18 +363,18 @@ class GrpCatalogue(HaloCatalogue):
 
     @staticmethod
     def _can_load(sim, arr_name='grp'):
-        if (arr_name in sim.loadable_keys()) or (arr_name in list(sim.keys())) :
+        if (arr_name in sim.loadable_keys()) or (arr_name in list(sim.keys())):
             return True
         else:
             return False
 
 
 class AmigaGrpCatalogue(GrpCatalogue):
-    def __init__(self, sim, arr_name='amiga.grp',**kwargs):
+    def __init__(self, sim, arr_name='amiga.grp', **kwargs):
         GrpCatalogue.__init__(self, sim, arr_name)
 
     @staticmethod
-    def _can_load(sim,arr_name='amiga.grp'):
+    def _can_load(sim, arr_name='amiga.grp'):
         return GrpCatalogue._can_load(sim, arr_name)
 
 
@@ -377,6 +388,7 @@ from pynbody.halo.subfindhdf import (
     ArepoSubfindHDFCatalogue,
     Gadget4SubfindHDFCatalogue,
     SubFindHDFHaloCatalogue,
+    TNGSubfindHDFCatalogue,
 )
 from pynbody.zooms.auriga import AurigaSubfindHDFCatalogue
 
@@ -389,7 +401,7 @@ def _get_halo_classes():
         RockstarCatalogue, SubfindCatalogue, SubFindHDFHaloCatalogue,
         NewAdaptaHOPCatalogue, AdaptaHOPCatalogue,
         RockstarIntermediateCatalogue, HOPCatalogue, Gadget4SubfindHDFCatalogue,
-        ArepoSubfindHDFCatalogue, AurigaSubfindHDFCatalogue
+        ArepoSubfindHDFCatalogue, TNGSubfindHDFCatalogue, AurigaSubfindHDFCatalogue
     ]
 
     return _halo_classes
