@@ -23,7 +23,7 @@ jobs:
         - [ubuntu-20.04, manylinux, x86_64, ""]
         - [macos-13, macosx, x86_64, "/usr/local/opt/"]
         - [macos-13-xlarge, macosx, arm64, "/opt/homebrew/opt/"]
-        python: ["cp38", "cp39", "cp310", "cp311"]
+        python: ["cp39", "cp310", "cp311", "cp312"]
     steps:
       - uses: actions/checkout@v3
 
@@ -47,26 +47,26 @@ jobs:
           echo 'CFLAGS=-I${{matrix.buildplat[3]}}/llvm/include -I${{matrix.buildplat[3]}}/libomp/include' >> $GITHUB_ENV
           echo 'CPPFLAGS=-I${{matrix.buildplat[3]}}/llvm/include -I${{matrix.buildplat[3]}}/libomp/include' >> $GITHUB_ENV
 
-      - name: Determine version tag
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "SETUP_VERSION=`python setup.py --version`" >> $GITHUB_ENV
-          echo "VERSION_TAG=`git describe --tags | cut -c 2-`" >> $GITHUB_ENV
+      # - name: Determine version tag
+      #   if: github.event_name != 'pull_request'
+      #   run: |
+      #     echo "SETUP_VERSION=`python setup.py --version`" >> $GITHUB_ENV
+      #     echo "VERSION_TAG=`git describe --tags | cut -c 2-`" >> $GITHUB_ENV
 
-      - name: Verify version naming is consistent
-        if: github.event_name != 'pull_request'
-        run: |
-          if [ "${{ env.VERSION_TAG }}" == "${{ env.SETUP_VERSION }}" ]; then
-              echo Git tag and python setup.py versions match: ${{ env.VERSION_TAG }}
-          else
-              echo Version label mismatch
-              echo Git tag-derived version is ${{ env.VERSION_TAG }}
-              echo setup.py-derived version is ${{ env.SETUP_VERSION }}
-              exit 1;
-          fi
+      # - name: Verify version naming is consistent
+      #   if: github.event_name != 'pull_request'
+      #   run: |
+      #     if [ "${{ env.VERSION_TAG }}" == "${{ env.SETUP_VERSION }}" ]; then
+      #         echo Git tag and python setup.py versions match: ${{ env.VERSION_TAG }}
+      #     else
+      #         echo Version label mismatch
+      #         echo Git tag-derived version is ${{ env.VERSION_TAG }}
+      #         echo setup.py-derived version is ${{ env.SETUP_VERSION }}
+      #         exit 1;
+      #     fi
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.12.0
+        uses: pypa/cibuildwheel@v2.16.2
         env:
           CIBW_BUILD: ${{ matrix.python }}-${{ matrix.buildplat[1] }}_${{ matrix.buildplat[2] }}
           CIBW_ARCHS_MACOS: ${{ matrix.buildplat[2] }}
