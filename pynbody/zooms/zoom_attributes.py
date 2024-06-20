@@ -13,7 +13,7 @@ kms2 = kms * kms
 # TODO: Have units check? Or assume always physical units input
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def U(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
@@ -23,30 +23,30 @@ def U(sim) -> SimArray:
     return U_pot
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def E(sim) -> SimArray:
     return sim["U"] + sim["ke"]
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def L(sim) -> SimArray:
-    '''Magnitude of  Angular Momentum'''
+    """Magnitude of  Angular Momentum"""
     L = SimArray(np.linalg.norm(sim["j"], axis=1))
     L.sim, L.units = sim, sim["j"].units
     return L
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def Lperp(sim) -> SimArray:
-    '''Perpendicular component of Angular Momentum'''
-    return np.sqrt((sim['L']**2) - (sim['jz']**2))
+    """Perpendicular component of Angular Momentum"""
+    return np.sqrt((sim["L"] ** 2) - (sim["jz"] ** 2))
 
 
 def calc_peri_apo(sim) -> dict[str, SimArray]:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
-    E, L = sim['E'].view(np.ndarray), sim['L'].view(np.ndarray)
+    E, L = sim["E"].view(np.ndarray), sim["L"].view(np.ndarray)
     peri = SimArray(pot.Rperiapo(np.column_stack((E, L)))[:, 0])
     peri.sim, peri.units = sim, units.kpc
     apo = SimArray(pot.Rapoapo(np.column_stack((E, L)))[:, 1])
@@ -55,27 +55,27 @@ def calc_peri_apo(sim) -> dict[str, SimArray]:
     return extreme_dict
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def peri(sim) -> SimArray:
     extreme_dict = calc_peri_apo(sim)
     return multiple_read(sim, extreme_dict, read_key="peri")
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def apo(sim) -> SimArray:
     extreme_dict = calc_peri_apo(sim)
     return multiple_read(sim, extreme_dict, read_key="apo")
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def ecc(sim) -> SimArray:
-    ecc = (sim['apo'] - sim['peri']) / (sim['apo'] + sim['peri'])
+    ecc = (sim["apo"] - sim["peri"]) / (sim["apo"] + sim["peri"])
     return ecc
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def RcircE(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
@@ -84,7 +84,7 @@ def RcircE(sim) -> SimArray:
     return RcircE
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def RcircL(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
@@ -93,14 +93,14 @@ def RcircL(sim) -> SimArray:
     return RcircL
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def circ(sim) -> SimArray:
-    circ = sim['Lz'] / sim['Lcirc_E']
+    circ = sim["Lz"] / sim["Lcirc_E"]
     return circ
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def Tcirc(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
@@ -111,7 +111,7 @@ def Tcirc(sim) -> SimArray:
     return Tcirc
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def Lcirc_E(sim) -> SimArray:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
@@ -128,67 +128,68 @@ def Lcirc_E(sim) -> SimArray:
     Lcirc_E.sim, Lcirc_E.units = sim, sim["Lz"].units
     return Lcirc_E
 
+
 # ActionAngles
 # Calculate seperately in agama_potential.action_angle_calc
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def JR(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=False)
     return multiple_read(sim, aa_dict, "JR", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def Jz(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=False)
     return multiple_read(sim, aa_dict, "Jz", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def Jphi(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=False)
     return multiple_read(sim, aa_dict, "Jphi", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def AR(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=True)
     return multiple_read(sim, aa_dict, "AR", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def Az(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=True)
     return multiple_read(sim, aa_dict, "Az", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def Aphi(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=True)
     return multiple_read(sim, aa_dict, "Aphi", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def OR(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=True)
     return multiple_read(sim, aa_dict, "OR", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def Oz(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=True)
     return multiple_read(sim, aa_dict, "Oz", save=True)
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 @cache_prop
 def Ophi(sim) -> SimArray:
     aa_dict = calc_action_angles(sim, angles=True)
@@ -198,31 +199,31 @@ def Ophi(sim) -> SimArray:
 # Derived from Action Angles
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def Jtot(sim) -> SimArray:
     Jtot = sim["JR"] + sim["Jz"] + sim["Jphi"].abs()
     return Jtot
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def J_diamond(sim) -> SimArray:
     Jd = (sim["Jz"] - sim["JR"]) / sim["Jtot"]
     return Jd
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def Jphi_Jtot(sim) -> SimArray:
-    '''Used in J_diamond'''
+    """Used in J_diamond"""
     return sim["Jphi"] / sim["Jtot"]
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def JR_Jtot(sim) -> SimArray:
-    '''Used in J_diamond'''
+    """Used in J_diamond"""
     return sim["JR"] / sim["Jtot"]
 
 
-@ZoomSnap.derived_quantity
+@ZoomSnap.derived_array
 def Jz_Jtot(sim) -> SimArray:
-    '''Used in J_diamond'''
+    """Used in J_diamond"""
     return sim["Jz"] / sim["Jtot"]

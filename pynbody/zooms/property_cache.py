@@ -8,7 +8,7 @@ from pynbody.array import SimArray
 from pynbody import family
 from pynbody.snapshot import FamilySubSnap
 
-from .agama_potential import action_angles_props, calc_action_angles
+# from .agama_potential import action_angles_props, calc_action_angles
 
 
 def get_fam_str(sim) -> str:
@@ -31,6 +31,7 @@ def cache_prop(func) -> Callable:
         result = func(sim)
         save_cached(sim, func_str, fam, result)
         return result
+
     return wrapper
 
 
@@ -87,11 +88,11 @@ def del_cached_props(sim, fam, del_props) -> None:
                 del hf[p]
 
 
-family_dict = {'dm': family.dm, 'gas': family.gas, "star": family.star}
+family_dict = {"dm": family.dm, "gas": family.gas, "star": family.star}
 
 
 def multiple_read(sim, data_dict, read_key, save=False) -> SimArray:
-    '''adds multiple properties to the sim at once, returning the chosen value'''
+    """adds multiple properties to the sim at once, returning the chosen value"""
     # TODO: This is currently for one family only
     if save:
         save_multiple_cached(sim, data_dict)

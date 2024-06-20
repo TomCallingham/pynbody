@@ -22,7 +22,7 @@ def orientate_snap(self) -> None:
 
 
 def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc") -> dict:
-    ''' also orientates!'''
+    """also orientates!"""
     h0 = sim_snap.halos()[0]
     x_cen = pynbody.analysis.halo.center(h0, retcen=True, cen_size=cen_size)
     tx = transformation.inverse_translate(sim_snap, x_cen)
@@ -39,7 +39,7 @@ def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc"
 
 
 def apply_pynbody_orientation(sim_snap, orientation) -> None:
-    ''' also orientates!'''
+    """also orientates!"""
     # Could make all pynbody orientations lazy
     x_cen, v_cen, z_Rot = orientation["x_cen"], orientation["v_cen"], orientation["z_Rot"]
     tx = transformation.inverse_xv_translate(sim_snap, x_shift=x_cen, v_shift=v_cen)
@@ -64,12 +64,13 @@ def lazy_orientate_snap(self) -> None:
 
 
 def lazy_apply_pynbody_orientation(orientation) -> Callable:
-    ''' also orientates!'''
+    """also orientates!"""
     x_cen, v_cen, z_Rot = orientation["x_cen"], orientation["v_cen"], orientation["z_Rot"]
 
     def translate_snap(sim_snap):
         tx = transformation.inverse_xv_translate(sim_snap, x_shift=x_cen, v_shift=v_cen)
         tx = transformation.transform(tx, z_Rot)
+
     return translate_snap
 
 

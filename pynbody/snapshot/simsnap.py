@@ -41,10 +41,10 @@ if typing.TYPE_CHECKING:
     from .. import bridge, halo, subsnap, transformation
 
 
-logger = logging.getLogger('pynbody.snapshot.simsnap')
+logger = logging.getLogger("pynbody.snapshot.simsnap")
+
 
 class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclasses, transformation.Transformable):
-
     """The class for managing simulation snapshots.
 
     For most purposes, SimSnaps should be initialized through :func:`~pynbody.snapshot.load`
@@ -65,8 +65,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     # full Nx3 data, the others reflecting Nx1 slices of it
     #
     # TO DO: This should probably be read in from a config file
-    _split_arrays = {'pos': ('x', 'y', 'z'),
-                     'vel': ('vx', 'vy', 'vz')}
+    _split_arrays = {"pos": ("x", "y", "z"), "vel": ("vx", "vy", "vz")}
 
     @classmethod
     def _array_name_1D_to_ND(self, name):
@@ -97,7 +96,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         if array_name in self._split_arrays:
             array_name_1D = self._split_arrays[array_name]
         else:
-            array_name_1D = [array_name + "_" + i for i in ('x', 'y', 'z')]
+            array_name_1D = [array_name + "_" + i for i in ("x", "y", "z")]
 
         return array_name_1D
 
@@ -111,7 +110,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         """
         for v in self._split_arrays.values():
             if array_name in v:
-              return True
+                return True
 
         generic_match = re.findall("^(.+)_[xyz]$", array_name)
         loadable_keys = self.loadable_keys()
@@ -124,7 +123,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     def _can_load(cls, filepath: pathlib.Path):
         # this should be implemented by subclasses that can load from disk
         return False
-
 
     def __init__(self):
         """Initialize an empty, zero-length SimSnap.
@@ -180,11 +178,8 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         # into simulation arrays (which can cause confusion because the array returned
         # from create_family_array might have properties you don't expect)
 
-        self.delay_promotion.on_exit = lambda: self._delayed_array_promotions(
-        )
+        self.delay_promotion.on_exit = lambda: self._delayed_array_promotions()
         self.__delayed_promotions = []
-
-
 
         self.properties = simdict.SimDict({})
         self._file_units_system = []
@@ -203,7 +198,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
     def __repr__(self):
         if self._filename != "":
-            return "<SimSnap \"" + str(self._filename) + "\" len=" + str(len(self)) + ">"
+            return '<SimSnap "' + str(self._filename) + '" len=' + str(len(self)) + ">"
         else:
             return "<SimSnap len=" + str(len(self)) + ">"
 
@@ -216,7 +211,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             sl = self._get_family_slice(fam)
             if sl.start != sl.stop:
                 out.append(fam)
-                start[fam] = (sl.start)
+                start[fam] = sl.start
         out.sort(key=start.__getitem__)
         return out
 
@@ -224,7 +219,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     # THE BASICS: GETTING AND SETTING
     ############################################
 
-    def __getitem__(self, i) -> array.SimArray | subsnap.SubSnapBase :
+    def __getitem__(self, i) -> array.SimArray | subsnap.SubSnapBase:
         """Return either a specific array or a subview of this simulation. See
         the class documentation (:class:`SimSnap`) for more information."""
         from . import subsnap
@@ -278,7 +273,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             # one exists, or the dtype of the source array we are copying
             dtype = self._get_preferred_dtype(name)
             if dtype is None:
-                dtype = getattr(item, 'dtype', None)
+                dtype = getattr(item, "dtype", None)
 
             self._create_array(name, ndim, dtype=dtype)
 
@@ -300,11 +295,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         else:
             del self._arrays[name]
             if name in self._derived_array_names:
-                del self._derived_array_names[
-                    self._derived_array_names.index(name)]
+                del self._derived_array_names[self._derived_array_names.index(name)]
 
-
-    def _get_subsnap_from_mask_array(self,mask_array):
+    def _get_subsnap_from_mask_array(self, mask_array):
         if len(mask_array.shape) > 1 or mask_array.shape[0] > len(self):
             raise ValueError("Incorrect shape for masking array")
         else:
@@ -350,8 +343,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         # get a KeyError from the below.
         return self._get_array(name)
 
-
-
     def __load_if_required(self, name):
         if name not in list(self.keys()):
             try:
@@ -378,10 +369,13 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         if name in self.family_keys():
             in_fam, out_fam = self.__get_included_and_excluded_families_for_array(name)
-            raise KeyError("""{!r} is a family-level array for {}. To use it over the whole simulation you need either to delete it first, or create it separately for {}.""".format(
-                name, in_fam, out_fam))
+            raise KeyError(
+                """{!r} is a family-level array for {}. To use it over the whole simulation you need either to delete it first, or create it separately for {}.""".format(
+                    name, in_fam, out_fam
+                )
+            )
 
-    def __get_included_and_excluded_families_for_array(self,name):
+    def __get_included_and_excluded_families_for_array(self, name):
         in_fam = []
         out_fam = []
         for x in self.families():
@@ -396,17 +390,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         if self.is_derived_array(name):
             del self.ancestor[name]
 
-
     def __load_remaining_families_if_loadable(self, name):
         in_fam, out_fam = self.__get_included_and_excluded_families_for_array(name)
         try:
             for fam in out_fam:
-                if name not in self[fam]: # (check again, in case it was created in the meantime)
+                if name not in self[fam]:  # (check again, in case it was created in the meantime)
                     self.__load_array_and_perform_postprocessing(name, fam=fam)
         except OSError:
             pass
-
-
 
     def _get_persist(self, hash, name):
         try:
@@ -421,8 +412,8 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
     def _clear_immediate_mode(self):
         for k, v in self._persistent_objects.items():
-            if '_immediate_cache' in v:
-                del v['_immediate_cache']
+            if "_immediate_cache" in v:
+                del v["_immediate_cache"]
 
     def __getattr__(self, name):
         """This function overrides the behaviour of f.X where f is a SimSnap object.
@@ -440,8 +431,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         except ValueError:
             pass
 
-        raise AttributeError("{!r} object has no attribute {!r}".format(
-            type(self).__name__, name))
+        raise AttributeError("{!r} object has no attribute {!r}".format(type(self).__name__, name))
 
     def __setattr__(self, name, val):
         """This function overrides the behaviour of setting f.X where f is a SimSnap object.
@@ -497,7 +487,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             x.append((k, self[k]))
         return x
 
-    def get(self, key, alternative=None) -> array.SimArray | None :
+    def get(self, key, alternative=None) -> array.SimArray | None:
         """Standard python get method, returns self[key] if
         key in self else alternative"""
         try:
@@ -569,7 +559,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         if other is self:
             return True
-        elif hasattr(other, 'base'):
+        elif hasattr(other, "base"):
             return self.is_ancestor(other.base)
         else:
             return False
@@ -581,7 +571,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     @property
     def ancestor(self) -> SimSnap:
         """The original SimSnap from which this view is derived (potentially self)"""
-        if hasattr(self, 'base'):
+        if hasattr(self, "base"):
             return self.base.ancestor
         else:
             return self
@@ -635,7 +625,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         (Hubble constant in canonical units) for this snapshot, ready for
         passing into unit conversion functions."""
         d = {}
-        wanted = ['a', 'h']
+        wanted = ["a", "h"]
         for x in wanted:
             if x in self.properties:
                 d[x] = self.properties[x]
@@ -659,16 +649,16 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         except OSError:
             return
 
-        name_mapping = {'pos': 'distance', 'vel': 'velocity'}
+        name_mapping = {"pos": "distance", "vel": "velocity"}
         units_dict = {}
 
         for line in lines:
-            if (not line.startswith("#")):
+            if not line.startswith("#"):
                 if ":" not in line:
-                    raise OSError("Unknown format for units file %r"%(self.filename+".units"))
+                    raise OSError("Unknown format for units file %r" % (self.filename + ".units"))
                 else:
-                    t, u = list(map(str.strip,line.split(":")))
-                    t = name_mapping.get(t,t)
+                    t, u = list(map(str.strip, line.split(":")))
+                    t = name_mapping.get(t, t)
                     units_dict[t] = u
 
         self.set_units_system(**units_dict)
@@ -690,34 +680,31 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         # one
         if len(self._file_units_system) < 3:
             warnings.warn("Previous unit system incomplete -- using defaults")
-            self._file_units_system = [
-                units.Unit(x) for x in ('G', '1 kpc', '1e10 Msol')]
+            self._file_units_system = [units.Unit(x) for x in ("G", "1 kpc", "1e10 Msol")]
 
         else:
             # we want to change the base units -- so convert to original
             # units first and then set all arrays to new unit system
             self.original_units()
 
-
         # if any are missing, work them out from what we already have:
 
         if velocity is None:
-            velocity = self.infer_original_units('km s^-1')
+            velocity = self.infer_original_units("km s^-1")
 
         if distance is None:
-            distance = self.infer_original_units('kpc')
+            distance = self.infer_original_units("kpc")
 
         if mass is None:
-            mass = self.infer_original_units('Msol')
+            mass = self.infer_original_units("Msol")
 
         if temperature is None:
-            temperature = self.infer_original_units('K')
+            temperature = self.infer_original_units("K")
 
         new_units = []
         for x in [velocity, distance, mass, temperature]:
             if x is not None:
                 new_units.append(units.Unit(x))
-
 
         self._file_units_system = new_units
 
@@ -731,8 +718,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 ref_unit = arr.units
             else:
                 try:
-                    ref_unit = config_parser.get(
-                        'default-array-dimensions', arr_name)
+                    ref_unit = config_parser.get("default-array-dimensions", arr_name)
                 except configparser.NoOptionError:
                     # give up -- no applicable dimension found
                     continue
@@ -742,22 +728,22 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     def original_units(self):
         """Converts all arrays'units to be consistent with the units of
         the original file."""
-        self.physical_units(distance=self.infer_original_units('km'),
-                            velocity=self.infer_original_units('km s^-1'),
-                            mass=self.infer_original_units('Msol'), persistent=False)
-
+        self.physical_units(
+            distance=self.infer_original_units("km"),
+            velocity=self.infer_original_units("km s^-1"),
+            mass=self.infer_original_units("Msol"),
+            persistent=False,
+        )
 
     def infer_original_units(self, dimensions):
         """Given a unit (or string) `dimensions`, returns a unit with the same
         physical dimensions which is in the unit schema of the current file."""
         dimensions = units.Unit(dimensions)
         try:
-            d = dimensions.dimensional_project(
-                self._file_units_system + ["a", "h"])
+            d = dimensions.dimensional_project(self._file_units_system + ["a", "h"])
         except units.UnitsException:
             return units.no_unit
-        new_unit = reduce(lambda x, y: x * y, [
-                          a ** b for a, b in zip(self._file_units_system, d)])
+        new_unit = reduce(lambda x, y: x * y, [a**b for a, b in zip(self._file_units_system, d)])
         return new_unit
 
     def _default_units_for(self, array_name):
@@ -798,8 +784,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         from .. import config, halo
 
-        priority = kwargs.pop('priority',
-                              config['halo-class-priority'])
+        priority = kwargs.pop("priority", config["halo-class-priority"])
 
         priority = [halo._fix_american_spelling(p) for p in priority]
 
@@ -824,13 +809,15 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         """
         from .. import bridge
+
         return bridge.bridge_factory(self, other)
 
     def load_copy(self) -> SimSnap:
         """Tries to load a copy of this snapshot, using partial loading to select
         only a subset of particles corresponding to a given SubSnap"""
         from .. import load
-        if getattr(self.ancestor,'partial_load',False):
+
+        if getattr(self.ancestor, "partial_load", False):
             raise NotImplementedError("Cannot load a copy of data that was itself partial-loaded")
         return load(self.ancestor.filename, take=self.get_index_list(self.ancestor))
 
@@ -858,11 +845,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         anc = self.ancestor
 
         pre_keys = set(anc.keys())
+        my_pre_keys = set(self.keys())
 
         # the following function builds a dictionary mapping families to a set of the
         # named arrays defined for them.
-        fk = lambda: {fami: {k for k in list(anc._family_arrays.keys()) if fami in anc._family_arrays[k]}
-                           for fami in family._registry}
+        fk = lambda: {
+            fami: {k for k in list(anc._family_arrays.keys()) if fami in anc._family_arrays[k]}
+            for fami in family._registry
+        }
         pre_fam_keys = fk()
 
         with self.delay_promotion:
@@ -898,13 +888,18 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                             anc[f][v].units = anc._default_units_for(v)
                         anc._autoconvert_array_unit(anc[f][v])
 
+            current_keys = self.keys()
+            my_new_keys = set(current_keys) - my_pre_keys
 
+            if "pos" in my_new_keys or "vel" in my_new_keys and "pos" not in current_keys and "vel" not in current_keys:
+                if hasattr(anc, "lazy_orient"):
+                    anc.lazy_orient(self)
 
     ############################################
     # VECTOR TRANSFORMATIONS OF THE SNAPSHOT
     ############################################
 
-    def wrap(self, boxsize=None, convention='center'):
+    def wrap(self, boxsize=None, convention="center"):
         """Wraps the positions of the particles in the box to lie in a chosen fundamental domain.
 
         Parameters
@@ -919,18 +914,17 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             [0, boxsize).
         """
 
-
         if boxsize is None:
             boxsize = self.properties["boxsize"]
 
         if isinstance(boxsize, units.UnitBase):
             boxsize = float(boxsize.ratio(self["pos"].units, **self.conversion_context()))
 
-        if convention=='center':
+        if convention == "center":
             for coord in "x", "y", "z":
                 self[coord][np.where(self[coord] <= -boxsize / 2)] += boxsize
                 self[coord][np.where(self[coord] > boxsize / 2)] -= boxsize
-        elif convention=='upper':
+        elif convention == "upper":
             for coord in "x", "y", "z":
                 self[coord][np.where(self[coord] < 0)] += boxsize
                 self[coord][np.where(self[coord] >= boxsize)] -= boxsize
@@ -942,13 +936,13 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     ############################################
     def write(self, fmt=None, filename=None, **kwargs):
         if filename is None and "<" in self.filename:
-            raise RuntimeError(
-                'Cannot infer a filename; please provide one (use obj.write(filename="filename"))')
+            raise RuntimeError('Cannot infer a filename; please provide one (use obj.write(filename="filename"))')
 
         if fmt is None:
             if not hasattr(self, "_write"):
                 raise RuntimeError(
-                    'Cannot infer a file format; please provide one (e.g. use obj.write(filename="filename", fmt=pynbody.snapshot.tipsy.TipsySnap)')
+                    'Cannot infer a file format; please provide one (e.g. use obj.write(filename="filename", fmt=pynbody.snapshot.tipsy.TipsySnap)'
+                )
 
             self._write(self, filename, **kwargs)
         else:
@@ -986,25 +980,22 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         # It's an update if we're not fully replacing the file on
         # disk, i.e. there exists a family f in self.families() but
         # not in fam for which array_name is loadable
-        is_update = any([array_name in self[
-                        f].loadable_keys() and f not in fam for f in self.families()])
+        is_update = any([array_name in self[f].loadable_keys() and f not in fam for f in self.families()])
 
         if not hasattr(self, "_write_array"):
-            raise OSError(
-                "The underlying file format class does not support writing individual arrays back to disk")
+            raise OSError("The underlying file format class does not support writing individual arrays back to disk")
 
         if is_update and not hasattr(self, "_update_array"):
-            raise OSError(
-                "The underlying file format class does not support updating arrays on disk")
+            raise OSError("The underlying file format class does not support updating arrays on disk")
 
         # It's an overwrite if we're writing over something loadable
-        is_overwriting = any([array_name in self[
-                             f].loadable_keys() for f in fam])
+        is_overwriting = any([array_name in self[f].loadable_keys() for f in fam])
 
         if is_overwriting and not overwrite:
             # User didn't specifically say overwriting is OK
             raise OSError(
-                "This operation would overwrite existing data on disk. Call again setting overwrite=True if you want to enable this behaviour.")
+                "This operation would overwrite existing data on disk. Call again setting overwrite=True if you want to enable this behaviour."
+            )
 
         if is_update:
             self._update_array(array_name, fam=fam, **kwargs)
@@ -1020,7 +1011,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         This is mainly useful when creating family arrays for new families, to be
         sure the datatype chosen matches"""
 
-        if hasattr(self, 'base'):
+        if hasattr(self, "base"):
             return self.base._get_preferred_dtype(array_name)
         elif array_name in list(self.keys()):
             return self[array_name].dtype
@@ -1029,8 +1020,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         else:
             return None
 
-    def _create_array(self, array_name, ndim=1, dtype=None, zeros=True, derived=False, shared=None,
-                      source_array=None):
+    def _create_array(self, array_name, ndim=1, dtype=None, zeros=True, derived=False, shared=None, source_array=None):
         """Create a single snapshot-level array of dimension len(self) x ndim, with
         a given numpy dtype.
 
@@ -1052,12 +1042,11 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         # Does this actually correspond to a slice into a 3D array?
         NDname = self._array_name_1D_to_ND(array_name)
         if NDname:
-            self._create_array(
-                NDname, ndim=3, dtype=dtype, zeros=zeros, derived=derived)
+            self._create_array(NDname, ndim=3, dtype=dtype, zeros=zeros, derived=derived)
             return
 
         if ndim == 1:
-            dims = (self._num_particles, )
+            dims = (self._num_particles,)
         else:
             dims = (self._num_particles, ndim)
 
@@ -1087,8 +1076,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 self._arrays[a] = source_array[:, i]
                 self._arrays[a]._name = a
 
-    def _create_family_array(self, array_name, family, ndim=1, dtype=None, derived=False, shared=None,
-                             source_array=None):
+    def _create_family_array(
+        self, array_name, family, ndim=1, dtype=None, derived=False, shared=None, source_array=None
+    ):
         """Create a single array of dimension len(self.<family.name>) x ndim,
         with a given numpy dtype, belonging to the specified family. For arguments
         other than *family*, see the documentation for :func:`~pynbody.snapshot.SimSnap._create_array`.
@@ -1113,8 +1103,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         NDname = self._array_name_1D_to_ND(array_name)
         if NDname:
-            self._create_family_array(
-                NDname, family, ndim=3, dtype=dtype, derived=derived)
+            self._create_family_array(NDname, family, ndim=3, dtype=dtype, derived=derived)
             return
 
         self_families = self.families()
@@ -1122,12 +1111,11 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         if len(self_families) == 1 and family in self_families:
             # If the file has only one family, just go ahead and create
             # a normal array
-            self._create_array(
-                array_name, ndim=ndim, dtype=dtype, derived=derived, source_array=source_array)
+            self._create_array(array_name, ndim=ndim, dtype=dtype, derived=derived, source_array=source_array)
             return
 
         if ndim == 1:
-            dims = (self[family]._num_particles, )
+            dims = (self[family]._num_particles,)
         else:
             dims = (self[family]._num_particles, ndim)
 
@@ -1143,11 +1131,13 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         fams.append(family)
 
         if dtype is not None and dtx is not None and dtype != dtx:
-
             # We insist on the data types being the same for, e.g. sim.gas['my_prop'] and sim.star['my_prop']
             # This makes promotion to simulation-level arrays possible.
-            raise ValueError("Requested data type {!r} is not consistent with existing data type {!r} for family array {!r}".format(
-                str(dtype), str(dtx), array_name))
+            raise ValueError(
+                "Requested data type {!r} is not consistent with existing data type {!r} for family array {!r}".format(
+                    str(dtype), str(dtx), array_name
+                )
+            )
 
         if all([x in fams for x in self_families]):
             # If, once we created this array, *all* families would have
@@ -1204,7 +1194,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         it."""
 
         with self._immediate_cache_lock:
-            if not hasattr(self, '_immediate_cache'):
+            if not hasattr(self, "_immediate_cache"):
                 self._immediate_cache = [{}]
             cache = self._immediate_cache[0]
             hx = hash(name)
@@ -1226,7 +1216,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         x = self._arrays[name]
         if x.derived and not always_writable:
             x = x.view()
-            x.flags['WRITEABLE'] = False
+            x.flags["WRITEABLE"] = False
 
         if index is not None:
             if type(index) is slice:
@@ -1260,15 +1250,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         if x.derived and not always_writable:
             x = x.view()
-            x.flags['WRITEABLE'] = False
+            x.flags["WRITEABLE"] = False
 
         if index is not None:
             if type(index) is slice:
                 x = x[index]
             else:
                 if self.immediate_mode:
-                    x = self._get_from_immediate_cache(name,
-                                                       lambda: x[index])
+                    x = self._get_from_immediate_cache(name, lambda: x[index])
                 else:
                     x = array.IndexedSimArray(x, index)
         return x
@@ -1283,8 +1272,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         """Update the contents of the family-level array to that
         specified by *value*. If *index* is not None, update only that
         subarray specified."""
-        util.set_array_if_not_same(self._family_arrays[name][family],
-                                   value, index)
+        util.set_array_if_not_same(self._family_arrays[name][family], value, index)
 
     def _create_arrays(self, array_list, ndim=1, dtype=None, zeros=True):
         """Create a set of arrays *array_list* of dimension len(self) x ndim, with
@@ -1307,7 +1295,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         if hasattr(self, "_family_index_cached"):
             return self._family_index_cached
 
-        ind = np.empty((len(self),), dtype='int8')
+        ind = np.empty((len(self),), dtype="int8")
         for i, f in enumerate(self.ancestor.families()):
             ind[self._get_family_slice(f)] = i
 
@@ -1339,8 +1327,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         if self.delay_promotion:
             # if array isn't already scheduled for promotion, do so now
             if not any([x[0] == name for x in self.__delayed_promotions]):
-                self.__delayed_promotions.append(
-                    [name, ndim, dtype, derived, shared])
+                self.__delayed_promotions.append([name, ndim, dtype, derived, shared])
             return None
 
         if dtype is None:
@@ -1349,14 +1336,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 dtype = self._family_arrays[name][x].dtype
                 for x in list(self._family_arrays[name].values()):
                     if x.dtype != dtype:
-                        warnings.warn("Data types of family arrays do not match; assuming " + str(
-                            dtype),  RuntimeWarning)
+                        warnings.warn(
+                            "Data types of family arrays do not match; assuming " + str(dtype), RuntimeWarning
+                        )
 
             except IndexError:
                 pass
 
-        dmap = [name in self._family_derived_array_names[
-            i] for i in self._family_arrays[name]]
+        dmap = [name in self._family_derived_array_names[i] for i in self._family_arrays[name]]
         some_derived = any(dmap)
         all_derived = all(dmap)
 
@@ -1366,30 +1353,28 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             all_derived = False
 
         if name not in self._arrays:
-            self._create_array(
-                name, ndim=ndim, dtype=dtype, derived=all_derived, shared=shared)
+            self._create_array(name, ndim=ndim, dtype=dtype, derived=all_derived, shared=shared)
         try:
             for fam in self._family_arrays[name]:
                 if has_units(self._family_arrays[name][fam]) and not has_units(self._arrays[name]):
-                    self._arrays[name].units = self._family_arrays[
-                        name][fam].units
+                    self._arrays[name].units = self._family_arrays[name][fam].units
                     # inherits the units from the first dimensional family array found.
                     # Note that future copies, once the units are set, invoke the correct conversion
                     # and raise a UnitsException if such a conversion is
                     # impossible.
 
                 try:
-                    self._arrays[name][self._get_family_slice(
-                        fam)] = self._family_arrays[name][fam]
+                    self._arrays[name][self._get_family_slice(fam)] = self._family_arrays[name][fam]
                 except units.UnitsException:
                     # There is a problem getting everything into the same units. The trouble is
                     # that having got here if we let the exception propagate, we're going to
                     # end up with the SimSnap in an inconsistent state. So force the copy
                     # ignoring the units and raise a warning
                     warnings.warn(
-                        "When conjoining family arrays to create a snapshot level array, the units could not be unified. You will now have a snapshot-level array %r with inconsistent unit information" % name)
-                    self._arrays[name].base[self._get_family_slice(
-                        fam)] = self._family_arrays[name][fam].base
+                        "When conjoining family arrays to create a snapshot level array, the units could not be unified. You will now have a snapshot-level array %r with inconsistent unit information"
+                        % name
+                    )
+                    self._arrays[name].base[self._get_family_slice(fam)] = self._family_arrays[name][fam].base
 
             del self._family_arrays[name]
             if ndim == 3:
@@ -1405,7 +1390,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 self._derived_array_names.append(name)
             else:
                 warnings.warn(
-                    "Conjoining derived and non-derived arrays. Assuming result is non-derived, so no further updates will be made.", RuntimeWarning)
+                    "Conjoining derived and non-derived arrays. Assuming result is non-derived, so no further updates will be made.",
+                    RuntimeWarning,
+                )
             for v in self._family_derived_array_names.values():
                 if name in v:
                     del v[v.index(name)]
@@ -1497,12 +1484,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         cls._add_derived_to_doc(fn)
         return fn
 
-
-
     def _find_deriving_function(self, name):
         for cl in type(self).__mro__:
-            if cl in self._derived_array_registry \
-                    and name in self._derived_array_registry[cl]:
+            if cl in self._derived_array_registry and name in self._derived_array_registry[cl]:
                 return self._derived_array_registry[cl][name]
         else:
             return None
@@ -1523,32 +1507,25 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             with self.auto_propagate_off:
                 if fam is None:
                     result = fn(self)
-                    ndim = result.shape[-1] if len(
-                        result.shape) > 1 else 1
-                    self._create_array(
-                        name, ndim, dtype=result.dtype, derived=not fn.__stable__)
-                    write_array = self._get_array(
-                        name, always_writable=True)
+                    ndim = result.shape[-1] if len(result.shape) > 1 else 1
+                    self._create_array(name, ndim, dtype=result.dtype, derived=not fn.__stable__)
+                    write_array = self._get_array(name, always_writable=True)
                 else:
                     result = fn(self[fam])
-                    ndim = result.shape[-1] if len(
-                        result.shape) > 1 else 1
+                    ndim = result.shape[-1] if len(result.shape) > 1 else 1
 
                     # check if a family array already exists with a different dtype
                     # if so, cast the result to the existing dtype
                     # numpy version < 1.7 does not support doing this in-place
 
-                    if self._get_preferred_dtype(name) != result.dtype \
-                       and self._get_preferred_dtype(name) is not None:
-                        if int(np.version.version.split('.')[1]) > 6 :
-                            result = result.astype(self._get_preferred_dtype(name),copy=False)
-                        else :
+                    if self._get_preferred_dtype(name) != result.dtype and self._get_preferred_dtype(name) is not None:
+                        if int(np.version.version.split(".")[1]) > 6:
+                            result = result.astype(self._get_preferred_dtype(name), copy=False)
+                        else:
                             result = result.astype(self._get_preferred_dtype(name))
 
-                    self[fam]._create_array(
-                        name, ndim, dtype=result.dtype, derived=not fn.__stable__)
-                    write_array = self[fam]._get_array(
-                        name, always_writable=True)
+                    self[fam]._create_array(name, ndim, dtype=result.dtype, derived=not fn.__stable__)
+                    write_array = self[fam]._get_array(name, always_writable=True)
 
                 self.ancestor._autoconvert_array_unit(result)
 
@@ -1556,19 +1533,15 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 if units.has_units(result):
                     write_array.units = result.units
 
-
-
-
-
     def _dirty(self, name):
         """Declare a given array as changed, so deleting any derived
         quantities which depend on it"""
 
         name = self._array_name_1D_to_ND(name) or name
-        if name=='pos':
+        if name == "pos":
             for v in self.ancestor._persistent_objects.values():
-                if 'kdtree' in v:
-                    del v['kdtree']
+                if "kdtree" in v:
+                    del v["kdtree"]
 
         if not self.auto_propagate_off:
             for d_ar in self._dependency_tracker.get_dependents(name):
@@ -1584,7 +1557,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                             del self[fam][d_ar]
                     if was_derived:
                         self._dirty(d_ar)
-
 
     def is_derived_array(self, name, fam=None) -> bool:
         """Returns True if the array or family array of given name is
@@ -1612,8 +1584,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                         del track[track.index(name)]
 
             else:
-                del self._derived_array_names[
-                    self._derived_array_names.index(name)]
+                del self._derived_array_names[self._derived_array_names.index(name)]
 
         else:
             raise RuntimeError("Not a derived array")
@@ -1624,9 +1595,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     def mean_by_mass(self, name) -> float | units.UnitBase:
         """Calculate the mean by mass of the specified array."""
         with self.immediate_mode:
-            mass = self['mass']
+            mass = self["mass"]
             array = self[name]
-            mass_indexing = (slice(None), ) + (np.newaxis, ) * (len(array.shape) - 1)
+            mass_indexing = (slice(None),) + (np.newaxis,) * (len(array.shape) - 1)
             return (mass[mass_indexing] * array).sum(axis=0) / mass.sum(axis=0)
 
     ############################################
@@ -1668,14 +1639,19 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             share a kdtree between different processes. It is not recommended for general use,
             and defaults to False.
         """
-        if not hasattr(self, 'kdtree'):
+        if not hasattr(self, "kdtree"):
             from .. import kdtree
             from ..configuration import config
+
             boxsize = self._get_boxsize_for_kdtree()
-            self.kdtree = kdtree.KDTree(self['pos'], self['mass'],
-                                        leafsize=config['sph']['tree-leafsize'],
-                                        boxsize=boxsize, num_threads=num_threads,
-                                        shared_mem=shared_mem)
+            self.kdtree = kdtree.KDTree(
+                self["pos"],
+                self["mass"],
+                leafsize=config["sph"]["tree-leafsize"],
+                boxsize=boxsize,
+                num_threads=num_threads,
+                shared_mem=shared_mem,
+            )
 
     def import_tree(self, serialized_tree, num_threads=None) -> None:
         """Import a precomputed kdtree from a serialized form.
@@ -1683,19 +1659,19 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         Throws ValueError if the tree is not compatible with the snapshot (though
         does not protect against all possible incompatibilities, so use with care)."""
         from .. import kdtree
-        self.kdtree = kdtree.KDTree.deserialize(self['pos'], self['mass'],
-                                         serialized_tree,
-                                         boxsize=self._get_boxsize_for_kdtree(),
-                                         num_threads=num_threads)
+
+        self.kdtree = kdtree.KDTree.deserialize(
+            self["pos"], self["mass"], serialized_tree, boxsize=self._get_boxsize_for_kdtree(), num_threads=num_threads
+        )
+
     def _get_boxsize_for_kdtree(self):
-        boxsize = self.properties.get('boxsize', None)
+        boxsize = self.properties.get("boxsize", None)
         if boxsize:
             if units.is_unit_like(boxsize):
-                boxsize = float(boxsize.in_units(self['pos'].units))
+                boxsize = float(boxsize.in_units(self["pos"].units))
         else:
             boxsize = -1.0  # represents infinite box
         return boxsize
-
 
     ############################################
     # HASHING AND EQUALITY TESTING
@@ -1711,8 +1687,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 hash = hashlib.md5(index_list.data)
                 self.__inclusion_hash = hash.digest()
             except Exception:
-                logging.warn(
-                    "Encountered a problem while calculating your inclusion hash. %s" % traceback.format_exc())
+                logging.warn("Encountered a problem while calculating your inclusion hash. %s" % traceback.format_exc())
             rval = self.__inclusion_hash
         return rval
 
@@ -1767,14 +1742,16 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         view are not reflected back into the original snapshot). It is intended for advanced use, e.g. by
         tangos."""
         from .copy_on_access import CopyOnAccessSimSnap
+
         return CopyOnAccessSimSnap(self)
 
-SimSnap.stable_derived_quantity = util.deprecated(SimSnap.stable_derived_array,
-                                              "stable_derived_quantity has been renamed to stable_derived_array")
+
+SimSnap.stable_derived_quantity = util.deprecated(
+    SimSnap.stable_derived_array, "stable_derived_quantity has been renamed to stable_derived_array"
+)
 
 SimSnap.stable_derived_quantity.__doc__ = "Deprecated alias for :meth:`stable_derived_array`"
 
-SimSnap.derived_quantity = util.deprecated(SimSnap.derived_array,
-                                           "derived_quantity has been renamed to derived_array")
+SimSnap.derived_quantity = util.deprecated(SimSnap.derived_array, "derived_quantity has been renamed to derived_array")
 
 SimSnap.derived_quantity.__doc__ = "Deprecated alias for :meth:`derived_array`"

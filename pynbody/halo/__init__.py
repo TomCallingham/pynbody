@@ -63,6 +63,7 @@ In addition, generic halo finders which output a list of halo numbers for each p
 
 
 """
+
 from __future__ import annotations
 
 import copy
@@ -89,8 +90,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("pynbody.halo")
 
-class DummyHalo(snapshot.util.ContainerWithPhysicalUnitsOption):
 
+class DummyHalo(snapshot.util.ContainerWithPhysicalUnitsOption):
     def __init__(self):
         self.properties = {}
 
@@ -99,7 +100,6 @@ class DummyHalo(snapshot.util.ContainerWithPhysicalUnitsOption):
 
 
 class Halo(snapshot.subsnap.IndexedSubSnap):
-
     """
     Represents a single halo from a halo catalogue.
 
@@ -113,7 +113,7 @@ class Halo(snapshot.subsnap.IndexedSubSnap):
         self._halo_number = halo_number
         self._descriptor = "halo_" + str(halo_number)
         self.properties = copy.copy(self.properties)
-        self.properties['halo_number'] = halo_number
+        self.properties["halo_number"] = halo_number
         self.properties.update(properties)
 
         # Inherit autoconversion from parent
@@ -130,54 +130,15 @@ class Halo(snapshot.subsnap.IndexedSubSnap):
         """A HaloCatalogue object containing only the subhalos of this halo."""
         return self._halo_catalogue._get_subhalo_catalogue(self._halo_number)
 
-
-    def physical_units(self, distance='kpc', velocity='km s^-1',
-                       mass='Msol', persistent=True, convert_parent=True):
-        """
-        Converts all array's units to be consistent with the
-        distance, velocity, mass basis units specified.
-
-        Base units can be specified using keywords.
-
-        **Optional Keywords**:
-
-           *distance*: string (default = 'kpc')
-
-           *velocity*: string (default = 'km s^-1')
-
-           *mass*: string (default = 'Msol')
-
-           *persistent*: boolean (default = True); apply units change to future lazy-loaded arrays if True
-
-           *convert_parent*: boolean (default = None); if True, propagate units change to parent snapshot. See note below.
-
-        **Note**:
-
-            When convert_parent is True, the unit conversion is propagated to
-            the parent halo catalogue and the halo properties *are not
-            converted*. The halo catalogue is in charge of calling
-            physical_units with convert_parent=False for all halo objects
-            (including this one).
-
-            When convert_parent is False, the properties are converted
-            immediately.
-
-        """
+    def physical_units(self, distance="kpc", velocity="km s^-1", mass="Msol", persistent=True, convert_parent=True):
         if convert_parent:
-            self._halo_catalogue.physical_units(
-                distance=distance,
-                velocity=velocity,
-                mass=mass,
-                persistent=persistent
-            )
+            self._halo_catalogue.physical_units(distance=distance, velocity=velocity, mass=mass, persistent=persistent)
         else:
             # Convert own properties
             self._autoconvert_properties()
 
 
-class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
-                    iter_subclasses.IterableSubclasses):
-
+class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclasses):
     """Generic halo catalogue object.
 
     To the user, this presents a simple interface where calling ``h[i]`` returns halo ``i``. Properties of halos
@@ -225,35 +186,85 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
         self._cached_halos: dict[int, Halo] = {}
         self._persistent_units = None
 
-    def calc_item(self, i):
-        if i in self._halos:  # and self._halos[i]() is not None :
-            if isinstance(self._halos[i], DummyHalo):
-                try:
-                    return self._get_halo(i)
-                except BaseException:
-                    return self._halos[i]
-            else:
-                return self._halos[i]
+    def load_all(self):
+        """Loads all halos, which is normally more efficient if a large fraction of them will be accessed."""
+        if not self._index_lists:
+            index_lists = self._get_all_particle_indices()
+            properties = self.get_properties_all_halos(with_units=True)
+            if isinstance(index_lists, tuple):
+                index_lists = HaloParticleIndices(*index_lists)
+            self._index_lists = index_lists
+            if len(properties) > 0:
+                self._properties = properties
+
+            if self._persistent_units is not None:
+                self._cached_properties_to_physical_units(self._persistent_units)
+
+    @util.deprecated("precalculate has been renamed to load_all")
+    def precalculate(self):
+        """Deprecated alias for :meth:`load_all`"""
+        self.load_all()
+
+    def _get_num_halos(self):
+        return len(self.number_mapper)
+
+    def _get_all_particle_indices_cached(self):
+        """Get the index information for all halos, using a cached version if available"""
+        self.load_all()
+        return self._index_lists
+
+    def _get_all_particle_indices(self) -> HaloParticleIndices | tuple[np.ndarray, np.ndarray]:
+        """Returns information about the index list for all halos.
+
+        Returns an HaloParticleIndices object, which is a container for the following information:
+        - particle_ids: particle IDs contained in halos, sorted by halo ID
+        - boundaries: the indices in particle_ids where each halo starts and ends
+        """
+        raise NotImplementedError("This halo catalogue does not support loading all halos at once")
+
+    def get_properties_one_halo(self, halo_number) -> dict:
+        """Returns a dictionary of properties for a single halo, given a halo_number"""
+
+        # Default implementation: extract from all halos. Subclasses may override this if they can load properties
+        # for a single halo more efficiently.
+        self._properties = self.get_properties_all_halos(with_units=True)
+        return self._get_properties_one_halo_using_cache_if_available(
+            halo_number, self.number_mapper.number_to_index(halo_number)
+        )
+
+    def get_properties_all_halos(self, with_units=True) -> dict:
+        """Returns a dictionary of properties for all halos.
+
+        If with_units is True, the properties are returned as SimArrays with units if possible. Otherwise, numpy arrays
+        are returned.
+
+        Note that the returned properties are in contiguous arrays, and as a result may be in a different order to the
+        halo numbers which are used to access individual halos. To map between halo numbers and properties, use the
+        .number_mapper object; or access individual property dictionaries by halo number using get_properties_one_halo."""
+        return {}
+
+    def _get_properties_one_halo_using_cache_if_available(self, halo_number, halo_index):
+        if self._properties is None:
+            return self.get_properties_one_halo(halo_number)
         else:
-            return {k: units.get_item_with_unit(self._properties[k],halo_index)
-                    for k in self._properties}
+            return {k: units.get_item_with_unit(self._properties[k], halo_index) for k in self._properties}
 
     def _get_particle_indices_one_halo(self, halo_number) -> NDArray[int]:
         """Get the index list for a single halo, given a halo_number.
 
         A generic implementation is provided that fetches index lists for all halos and then extracts the one"""
         self.load_all()
-        return self._index_lists.get_particle_index_list_for_halo(
-            self.number_mapper.number_to_index(halo_number)
-        )
+        return self._index_lists.get_particle_index_list_for_halo(self.number_mapper.number_to_index(halo_number))
 
     def _get_particle_indices_one_halo_using_list_if_available(self, halo_number, halo_index) -> NDArray[int]:
         if self._index_lists:
             return self._index_lists.get_particle_index_list_for_halo(halo_index)
         else:
             if len(self._cached_halos) == 5:
-                warnings.warn("Accessing multiple halos may be more efficient if you call load_all() on the "
-                              "halo catalogue", RuntimeWarning)
+                warnings.warn(
+                    "Accessing multiple halos may be more efficient if you call load_all() on the " "halo catalogue",
+                    RuntimeWarning,
+                )
             return self._get_particle_indices_one_halo(halo_number)
             # NB subclasses may implement loading one halo direct from disk in the above
             # if not, the default implementation will populate _cached_index_lists
@@ -265,10 +276,13 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
 
     def _get_halo(self, halo_number) -> Halo:
         halo_index = self.number_mapper.number_to_index(halo_number)
-        return Halo(halo_number,
-                    self._get_properties_one_halo_using_cache_if_available(halo_number, halo_index),
-                    self, self.base,
-                    self._get_particle_indices_one_halo_using_list_if_available(halo_number, halo_index))
+        return Halo(
+            halo_number,
+            self._get_properties_one_halo_using_cache_if_available(halo_number, halo_index),
+            self,
+            self.base,
+            self._get_particle_indices_one_halo_using_list_if_available(halo_number, halo_index),
+        )
 
     def get_dummy_halo(self, halo_number) -> DummyHalo:
         """Return a DummyHalo object containing only the halo properties, no particle information"""
@@ -293,6 +307,7 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
 
     def __getitem__(self, item) -> Halo | SubhaloCatalogue:
         from .subhalo_catalogue import SubhaloCatalogue
+
         if isinstance(item, slice):
             return SubhaloCatalogue(self, np.arange(*item.indices(len(self))))
         elif hasattr(item, "__len__"):
@@ -310,12 +325,13 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
 
         This is a convenience function for subclasses to use."""
         if not hasattr(self, "_iord_to_fpos"):
-            if 'iord' in self.base.loadable_keys() or 'iord' in self.base.keys():
-                self._iord_to_fpos = make_iord_to_offset_mapper(self.base['iord'])
+            if "iord" in self.base.loadable_keys() or "iord" in self.base.keys():
+                self._iord_to_fpos = make_iord_to_offset_mapper(self.base["iord"])
 
             else:
-                warnings.warn("No iord array available; assuming halo catalogue is using sequential particle IDs",
-                              RuntimeWarning)
+                warnings.warn(
+                    "No iord array available; assuming halo catalogue is using sequential particle IDs", RuntimeWarning
+                )
 
                 class OneToOneIndex:
                     def __getitem__(self, i):
@@ -325,13 +341,16 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
 
     def _get_subhalo_catalogue(self, parent_halo_number: int) -> SubhaloCatalogue:
         from .subhalo_catalogue import SubhaloCatalogue
+
         props = self.get_properties_one_halo(parent_halo_number)
-        if 'children' in props:
-            return SubhaloCatalogue(self, props['children'])
+        if "children" in props:
+            return SubhaloCatalogue(self, props["children"])
         else:
             raise ValueError(f"This halo catalogue does not support subhalos")
 
-    @util.deprecated("This method is deprecated and will be removed in a future release. Use python `in` syntax instead.")
+    @util.deprecated(
+        "This method is deprecated and will be removed in a future release. Use python `in` syntax instead."
+    )
     def contains(self, halo_number: int) -> bool:
         """Deprecated alias; instead of ``h.contains(number)`` use ``number in h``."""
         return halo_number in self
@@ -361,9 +380,9 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
 
         """
         self.load_all()
-        number_per_particle = self._index_lists.get_halo_number_per_particle(len(self.base),
-                                                                             None if use_index else self.number_mapper,
-                                                                             fill_value = fill_value)
+        number_per_particle = self._index_lists.get_halo_number_per_particle(
+            len(self.base), None if use_index else self.number_mapper, fill_value=fill_value
+        )
         if family is not None:
             return number_per_particle[self.base._get_family_slice(family)]
         else:
@@ -374,24 +393,21 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
 
         This relies on the underlying SimSnap being capable of partial loading."""
         from .. import load
-        halo_index = self.number_mapper.number_to_index(halo_number)
-        return load(self.base.filename,
-                    take=self._get_particle_indices_one_halo_using_list_if_available(halo_number, halo_index))
 
-    def physical_units(self, distance='kpc', velocity='km s^-1', mass='Msol', persistent=True, convert_parent=False):
+        halo_index = self.number_mapper.number_to_index(halo_number)
+        return load(
+            self.base.filename,
+            take=self._get_particle_indices_one_halo_using_list_if_available(halo_number, halo_index),
+        )
+
+    def physical_units(self, distance="kpc", velocity="km s^-1", mass="Msol", persistent=True, convert_parent=False):
         self.base.physical_units(distance=distance, velocity=velocity, mass=mass, persistent=persistent)
 
         # Convert all instantiated subhalos
         for halo in self._cached_halos.values():
-            halo.physical_units(
-                distance,
-                velocity,
-                mass,
-                persistent=persistent,
-                convert_parent=False
-            )
+            halo.physical_units(distance, velocity, mass, persistent=persistent, convert_parent=False)
 
-        all_units = [units.Unit(x) for x in (distance, velocity, mass, 'a', 'h', 'K')]
+        all_units = [units.Unit(x) for x in (distance, velocity, mass, "a", "h", "K")]
 
         if persistent:
             self._persistent_units = all_units
@@ -404,10 +420,10 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
                 if isinstance(self._properties[k], array.SimArray) and units.has_unit(self._properties[k]):
                     self.base._autoconvert_array_unit(self._properties[k], all_units)
 
-
     @classmethod
     def _can_load(cls, sim):
         return False
+
 
 from . import (
     adaptahop,
@@ -420,26 +436,28 @@ from . import (
     subfindhdf,
     velociraptor,
 )
-from pynbody.zooms.auriga import AurigaSubfindHDFCatalogue
 
 
 def _fix_american_spelling(p):
     """Map American to British spelling (used by SimSnap.halos to allow flexible spelling)"""
-    if isinstance(p, str) and p.endswith('Catalog'):
-        return p.replace('Catalog', 'Catalogue')
+    if isinstance(p, str) and p.endswith("Catalog"):
+        return p.replace("Catalog", "Catalogue")
     else:
         return p
+
+
 def _alias_american_spelling():
     """Create American spelling aliases for all HaloCatalogue subclasses."""
     for c in HaloCatalogue.iter_subclasses():
         american_name = c.__name__.replace("Catalogue", "Catalog")
         # put american_name into the same module as c (not this module)
 
-        if c.__module__.startswith('pynbody.halo.'):
-            module = eval(c.__module__.replace('pynbody.halo.', ''))
+        if c.__module__.startswith("pynbody.halo."):
+            module = eval(c.__module__.replace("pynbody.halo.", ""))
 
         setattr(module, american_name, c)
 
-    globals()['HaloCatalog'] = HaloCatalogue
+    globals()["HaloCatalog"] = HaloCatalogue
+
 
 _alias_american_spelling()
