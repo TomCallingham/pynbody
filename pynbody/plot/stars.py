@@ -813,8 +813,8 @@ def schmidtlaw(sim, center=True, filename=None, pretime='50 Myr',
 
 	# calculate surface densities
 	if radial:
-		ps = profile.Profile(diskstars[youngstars], nbins=bins)
-		pg = profile.Profile(diskgas, nbins=bins)
+		ps = profile.Profile(diskstars[youngstars], nbins=bins, rmin=0, rmax=rmax)
+		pg = profile.Profile(diskgas, nbins=bins, rmin=0, rmax=rmax)
 	else:
 		# make bins 2 kpc
 		nbins = rmax * 2 / binsize
@@ -830,7 +830,7 @@ def schmidtlaw(sim, center=True, filename=None, pretime='50 Myr',
 		plt.clf()
 
 	plt.loglog(pg['density'].in_units('Msol pc^-2'),
-			   ps['density'].in_units('Msol kpc^-2') / pretime / 1e6, "+",
+			   (ps['density']/pretime).in_units('Msol kpc**-2 yr**-1'), "+",
 			   **kwargs)
 
 	if compare:
@@ -852,6 +852,7 @@ def schmidtlaw(sim, center=True, filename=None, pretime='50 Myr',
 	if (filename):
 		logger.info("Saving %s", filename)
 		plt.savefig(filename)
+	return pg['density'].in_units('Msol pc^-2'), (ps['density']/pretime).in_units('Msol kpc**-2 yr**-1')
 
 
 def oneschmidtlawpoint(sim, center=True, pretime='50 Myr',
@@ -917,8 +918,8 @@ def satlf(sim, band='v', filename=None, MWcompare=True, Trentham=True,
 	**Usage:**
 
 	>>> import pynbody.plot as pp
-	>>> h = s.halos()
-	>>> pp.satlf(h[1],linestyle='dashed',color='k')
+	>>> halos = s.halos()
+	>>> pp.satlf(halos[1],linestyle='dashed',color='k')
 
 
 	'''
@@ -987,8 +988,8 @@ def sbprofile(sim, band='v', diskheight='3 kpc', rmax='20 kpc', binning='equaln'
 	**Usage:**
 
 	>>> import pynbody.plot as pp
-	>>> h = s.halos()
-	>>> pp.sbprofile(h[1],exp_fit=3,linestyle='dashed',color='k')
+	>>> halos = s.halos()
+	>>> pp.sbprofile(halos[1],exp_fit=3,linestyle='dashed',color='k')
 
 	**Options:**
 
@@ -1171,7 +1172,7 @@ def behroozi(xmasses, z, alpha=-1.412, Kravtsov=False):
 
 	x = loghm - logm1
 	f0 = -np.log10(2.0) + delta * np.log10(2.0) ** g / (1.0 + np.exp(1))
-	smp = logm1 + logeps + f(x, analpha, delta, g) - f0
+	smp = logm1 + logeps + snap(x, analpha, delta, g) - f0
 
 	if isinstance(smp, np.ndarray):
 		scatter = np.zeros(len(smp))
@@ -1291,8 +1292,8 @@ def subfindguo(halo_catalog, clear=False, compare=True, baryfrac=False,
 	Usage:
 
 	>>> import pynbody.plot as pp
-	>>> h = s.halos()
-	>>> pp.guo(h,marker='+',markerfacecolor='k')
+	>>> halos = s.halos()
+	>>> pp.guo(halos,marker='+',markerfacecolor='k')
 
 	**Options:**
 
@@ -1362,8 +1363,8 @@ def guo(halo_catalog, clear=False, compare=True, baryfrac=False,
 	Usage:
 
 	>>> import pynbody.plot as pp
-	>>> h = s.halos()
-	>>> pp.guo(h,marker='+',markerfacecolor='k')
+	>>> halos = s.halos()
+	>>> pp.guo(halos,marker='+',markerfacecolor='k')
 
 	**Options:**
 

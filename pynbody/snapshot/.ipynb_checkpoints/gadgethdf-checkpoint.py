@@ -235,31 +235,10 @@ class GadgetHDFSnap(SimSnap):
 
         all_families_sorted = self._families_ordered()
 
-        self._gadget_ptype_slice = {} # will map from gadget particle type to location in pynbody logical file map
-
         for fam in all_families_sorted:
             family_length = 0
-
-
-            # A simpler and more readable version of the code below would be:
-            #
-            # for hdf_group in self._all_hdf_groups_in_family(fam):
-            #     family_length += hdf_group[self._size_from_hdf5_key].size
-            #
-            # However, occasionally we need to know where in the pynbody file map the gadget particle types lie.
-            # (Specifically this is used when loading subfind data.) So we need to expand that out a bit and also
-            # keep track of the slice for each gadget particle type.
-
-            ptype_slice_start = family_slice_start
-
-            for particle_type in self._family_to_group_map[fam]:
-
-                ptype_slice_len = 0
-                for hdf_group in self._hdf_files.iter_particle_groups_with_name(particle_type):
-                    ptype_slice_len += hdf_group[self._size_from_hdf5_key].size
-                self._gadget_ptype_slice[particle_type] = slice(ptype_slice_start, ptype_slice_start + ptype_slice_len)
-                family_length += ptype_slice_len
-                ptype_slice_start += ptype_slice_len
+            for hdf_group in self._all_hdf_groups_in_family(fam):
+                family_length += hdf_group[self._size_from_hdf5_key].size
 
             self._family_slice[fam] = slice(family_slice_start, family_slice_start + family_length)
             family_slice_start += family_length
@@ -702,9 +681,9 @@ class GadgetHDFSnap(SimSnap):
         atr = self._get_hdf_header_attrs()
 
         # expansion factor could be saved as redshift
-        if 'ExpansionFactor' in atr:
+        try:
             self.properties['a'] = atr['ExpansionFactor']
-        elif 'Redshift' in atr:
+        except KeyError:
             self.properties['a'] = 1. / (1 + atr['Redshift'])
 
         # Gadget 4 stores parameters in a separate dictionary <sigh>. For older formats, this will point back to the same
@@ -712,20 +691,16 @@ class GadgetHDFSnap(SimSnap):
         atr = self._get_hdf_parameter_attrs()
 
         # not all omegas need to be specified in the attributes
-        if 'OmegaBaryon' in atr:
+        try:
             self.properties['omegaB0'] = atr['OmegaBaryon']
-        if 'Omega0' in atr:
-            self.properties['omegaM0'] = atr['Omega0']
-        if 'OmegaLambda' in atr:
-            self.properties['omegaL0'] = atr['OmegaLambda']
-        if 'BoxSize' in atr:
-            self.properties['boxsize'] = atr['BoxSize'] * self.infer_original_units('cm')
-        if 'HubbleParam' in atr:
-            self.properties['h'] = atr['HubbleParam']
+        except KeyError:
+            pass
 
-        if 'a' in self.properties:
-            self.properties['z'] = (1. / self.properties['a']) - 1
-
+        self.properties['omegaM0'] = atr['Omega0']
+        self.properties['omegaL0'] = atr['OmegaLambda']
+        self.properties['boxsize'] = atr['BoxSize'] * self.infer_original_units('cm')
+        self.properties['z'] = (1. / self.properties['a']) - 1
+        self.properties['h'] = atr['HubbleParam']
 
         # time unit might not be set in the attributes
         if "Time_GYR" in atr:

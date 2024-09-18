@@ -1,5 +1,6 @@
 import numpy as np
 
+import pynbody.util.indexing_tricks
 from pynbody import filt, util
 from pynbody.snapshot import SimSnap
 
@@ -44,19 +45,20 @@ class SubSnapBase(SimSnap):
             )
 
         else:
-            ret = self._subsnap_base._get_array(name, util.concatenate_indexing(self._slice, index), always_writable)
+            ret = self._subsnap_base._get_array(name, pynbody.util.indexing_tricks.concatenate_indexing(
+                self._slice, index), always_writable)
             ret.family = self._unifamily
             return ret
 
     def _set_array(self, name, value, index=None):
-        self._subsnap_base._set_array(name, value, util.concatenate_indexing(self._slice, index))
+        self._subsnap_base._set_array(
+            name, value, pynbody.util.indexing_tricks.concatenate_indexing(self._slice, index))
 
     def _get_family_array(self, name, fam, index=None, always_writable=False):
         base_family_slice = self._subsnap_base._get_family_slice(fam)
-        sl = util.relative_slice(
-            base_family_slice, util.intersect_slices(self._slice, base_family_slice, len(self._subsnap_base))
-        )
-        sl = util.concatenate_indexing(sl, index)
+        sl = pynbody.util.indexing_tricks.relative_slice(base_family_slice,
+                                                         pynbody.util.indexing_tricks.intersect_slices(self._slice, base_family_slice, len(self._subsnap_base)))
+        sl = pynbody.util.indexing_tricks.concatenate_indexing(sl, index)
         if self.immediate_mode:
             return self._get_from_immediate_cache(
                 (name, fam), lambda: self._subsnap_base._get_family_array(name, fam, None, always_writable)[sl]
@@ -66,7 +68,8 @@ class SubSnapBase(SimSnap):
 
     def _set_family_array(self, name, family, value, index=None):
         fslice = self._get_family_slice(family)
-        self._subsnap_base._set_family_array(name, family, value, util.concatenate_indexing(fslice, index))
+        self._subsnap_base._set_family_array(
+            name, family, value, pynbody.util.indexing_tricks.concatenate_indexing(fslice, index))
 
     def _promote_family_array(self, *args, **kwargs):
         self._subsnap_base._promote_family_array(*args, **kwargs)
@@ -100,10 +103,8 @@ class SubSnapBase(SimSnap):
         return self._subsnap_base.infer_original_units(*args)
 
     def _get_family_slice(self, fam):
-        sl = util.relative_slice(
-            self._slice,
-            util.intersect_slices(self._slice, self._subsnap_base._get_family_slice(fam), len(self._subsnap_base)),
-        )
+        sl = pynbody.util.indexing_tricks.relative_slice(self._slice,
+                                                         pynbody.util.indexing_tricks.intersect_slices(self._slice, self._subsnap_base._get_family_slice(fam), len(self._subsnap_base)))
         return sl
 
     def _load_array(self, array_name, fam=None, **kwargs):
@@ -147,7 +148,7 @@ class SubSnapBase(SimSnap):
         if relative_to is self:
             return of_particles
 
-        return self._subsnap_base.get_index_list(relative_to, util.concatenate_indexing(self._slice, of_particles))
+        return self._subsnap_base.get_index_list(relative_to, pynbody.util.indexing_tricks.concatenate_indexing(self._slice, of_particles))
 
 
 class SubSnap(ExposedBaseSnapshotMixin, SubSnapBase):
@@ -183,7 +184,7 @@ class SubSnap(ExposedBaseSnapshotMixin, SubSnapBase):
         else:
             raise TypeError("Unknown SubSnap slice type")
 
-        self._num_particles = util.indexing_length(_slice)
+        self._num_particles = pynbody.util.indexing_tricks.indexing_length(_slice)
 
         self._descriptor = descriptor
 
@@ -296,15 +297,14 @@ class IndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSnapBase):
         return SimSnap._get_family_slice(self, fam)
 
     def _get_family_array(self, name, fam, index=None, always_writable=False):
-        sl = self._family_indices.get(fam, slice(0, 0))
-        sl = util.concatenate_indexing(sl, index)
+        sl = self._family_indices.get(fam,slice(0,0))
+        sl = pynbody.util.indexing_tricks.concatenate_indexing(sl, index)
 
         return self._subsnap_base._get_family_array(name, fam, sl, always_writable)
 
     def _set_family_array(self, name, family, value, index=None):
-        self._subsnap_base._set_family_array(
-            name, family, value, util.concatenate_indexing(self._family_indices[family], index)
-        )
+        self._subsnap_base._set_family_array(name, family, value,
+                                             pynbody.util.indexing_tricks.concatenate_indexing(self._family_indices[family], index))
 
     def _create_array(self, *args, **kwargs):
         self._subsnap_base._create_array(*args, **kwargs)
@@ -354,7 +354,8 @@ class FamilySubSnap(SubSnap):
 
     def _set_array(self, name, value, index=None):
         if name in list(self._subsnap_base.keys()):
-            self._subsnap_base._set_array(name, value, util.concatenate_indexing(self._slice, index))
+            self._subsnap_base._set_array(
+                name, value, pynbody.util.indexing_tricks.concatenate_indexing(self._slice, index))
         else:
             self._subsnap_base._set_family_array(name, self._unifamily, value, index)
 

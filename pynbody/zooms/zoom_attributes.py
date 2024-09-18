@@ -47,9 +47,10 @@ def calc_peri_apo(sim) -> dict[str, SimArray]:
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     pot = base.potential
     E, L = sim["E"].view(np.ndarray), sim["L"].view(np.ndarray)
-    peri = SimArray(pot.Rperiapo(np.column_stack((E, L)))[:, 0])
+    peri_apo = pot.Rperiapo(np.column_stack((E, L)))
+    peri = SimArray(peri_apo[:, 0])
     peri.sim, peri.units = sim, units.kpc
-    apo = SimArray(pot.Rapoapo(np.column_stack((E, L)))[:, 1])
+    apo = SimArray(peri_apo[:, 1])
     apo.sim, apo.units = sim, units.kpc
     extreme_dict = {"peri": peri, "apo": apo}
     return extreme_dict

@@ -29,7 +29,10 @@ import warnings
 import numpy as np
 
 from .. import array, chunk, config, config_parser, family, units, util
-from . import SimSnap, nchilada
+from . import SimSnap, namemapper, nchilada
+
+_name_map, _rev_name_map = namemapper.setup_name_maps('tipsy-name-mapping')
+_translate_array_name = namemapper.name_map_function(_name_map, _rev_name_map)
 
 logger = logging.getLogger('pynbody.snapshot.tipsy')
 
@@ -63,19 +66,24 @@ class TipsySnap(SimSnap):
         if not only_header:
             logger.info("Loading %s", filename)
         with util.open_(filename, 'rb') as f:
-            t, n, ndim, ng, nd, ns = struct.unpack("diiiii", f.read(28))
+            t, n, ndim, ng, nd, ns,pad = struct.unpack("diiiiii", f.read(32))
             if (ndim > 3 or ndim < 1):
                 self._byteswap = True
                 f.seek(0)
-                t, n, ndim, ng, nd, ns = struct.unpack(">diiiii", f.read(28))
+                t, n, ndim, ng, nd, ns,pad = struct.unpack(">diiiiii", f.read(32))
             else:
                 self._byteswap = False
 
             assert ndim == 3
+            if (n == 0 or n != ng+nd+ns):
+                n += ((pad & 0x000000ff) << 32)
+                ng += ((pad & 0x0000ff00) << 24)
+                nd += ((pad & 0x00ff0000) << 16)
+                ns += ((pad & 0xff000000) << 8)
+            assert n == ng+nd+ns
 
             self._header_t = t
 
-            f.read(4)
 
         disk_family_slice = dict({family.gas: slice(0, ng),
                                   family.dm: slice(ng, nd + ng),
@@ -253,6 +261,10 @@ class TipsySnap(SimSnap):
             fams = self._get_loadable_array_metadata(r)[1]
             for x in fams or list(rdict.keys()):
                 rdict[x].add(r)
+                if r != _translate_array_name(r, reverse=True):
+                    rdict[x].add(_translate_array_name(r, reverse=True))
+                if r != _translate_array_name(r):
+                    rdict[x].add(_translate_array_name(r))
 
         self._loadable_keys_registry = rdict
 
@@ -806,6 +818,12 @@ class TipsySnap(SimSnap):
                 filename = self._filename[:-3] + "." + array_name
             else:
                 filename = self._filename + "." + array_name
+            reverse = (_translate_array_name(array_name) == array_name)
+            if not os.path.isfile(filename):
+                if self._filename[-3:] == '.gz':
+                    filename = self._filename[:-3] + "." + _translate_array_name(array_name, reverse=reverse)
+                else:
+                    filename = self._filename + "." + _translate_array_name(array_name, reverse=reverse)
 
 
         logger.info("Attempting to load auxiliary array %s", filename)

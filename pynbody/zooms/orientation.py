@@ -49,18 +49,24 @@ def apply_pynbody_orientation(sim_snap, orientation) -> None:
 def lazy_orientate_snap(self) -> None:
     fname = self.analysis_folder + "pynbody_orientation.hdf5"
     if os.path.isfile(fname):
-        with h5py.File(fname, "r") as hf:
-            orientation = {p: hf[p][:] for p in hf.keys()}  # type: ignore
-        self.lazy_orient = lazy_apply_pynbody_orientation(orientation)
-    else:
         try:
-            print("creating and applying orienation")
-            orientation = calc_apply_pynbody_orientation(self)
-            print("Saving orientaiton")
-            save_pynbody_orientation(self.analysis_folder, orientation)
+            with h5py.File(fname, "r") as hf:
+                orientation = {p: hf[p][:] for p in hf.keys()}  # type: ignore
+            self.lazy_orient = lazy_apply_pynbody_orientation(orientation)
+            return
         except Exception as e:
             print(e)
-            print(f"Orient failed, {self}")
+            print("Can't load existing orientation, remaking?")
+
+    try:
+        print("creating and applying orienation")
+        orientation = calc_apply_pynbody_orientation(self)
+        print("Saving orientaiton")
+        save_pynbody_orientation(self.analysis_folder, orientation)
+        self.lazy_orient = orientation
+    except Exception as e:
+        print(e)
+        print(f"Orient failed, {self}")
 
 
 def lazy_apply_pynbody_orientation(orientation) -> Callable:
