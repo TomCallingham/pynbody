@@ -125,7 +125,6 @@ def Lcirc_E(sim) -> SimArray:
     pot_space = pot.potential(cart_space)
     Ecspace = pot_space + ((vc_space**2) / 2)
     Lcirc_E = SimArray(np.interp(E, Ecspace, Lspace))
-    Lcirc_E = SimArray(pot.Tcirc(E))
     Lcirc_E.sim, Lcirc_E.units = sim, sim["Lz"].units
     return Lcirc_E
 

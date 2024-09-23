@@ -15,6 +15,7 @@ pass the filename ``snap``. If you pass e.g. ``snap.2.hdf5``, only file 2 will b
 """
 
 import configparser
+import contextlib
 import functools
 import itertools
 import logging
@@ -27,18 +28,22 @@ from . import SimSnap, namemapper
 
 logger = logging.getLogger('pynbody.snapshot.gadgethdf')
 
-try:
-    import h5py
-except ImportError:
-    h5py = None
+import h5py
+# try:
+#     import h5py
+# except ImportError:
+#     h5py = None
 
 _default_type_map = {}
 for x in family.family_names():
-    try:
+    # try:
+    #     _default_type_map[family.get_family(x)] = \
+    #              [q.strip() for q in config_parser.get('gadgethdf-type-mapping', x).split(",")]
+    # except configparser.NoOptionError:
+    #     pass
+    with contextlib.suppress(configparser.NoOptionError):
         _default_type_map[family.get_family(x)] = \
                  [q.strip() for q in config_parser.get('gadgethdf-type-mapping', x).split(",")]
-    except configparser.NoOptionError:
-        pass
 
 _all_hdf_particle_groups = []
 for hdf_groups in _default_type_map.values():

@@ -3,15 +3,7 @@ from pynbody import units
 from .auriga import AurigaLikeHDFSnap
 import numpy as np
 
-
-@AurigaLikeHDFSnap.derived_quantity
-def my_id(sim) -> SimArray:
-    part_id = sim["iord"]
-    return part_id
-
-
 HubbleTime = 13.815
-
 
 @AurigaLikeHDFSnap.derived_quantity
 def temp(sim) -> SimArray:

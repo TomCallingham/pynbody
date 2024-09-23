@@ -32,13 +32,6 @@ class ZoomSnap:
     def del_cached_keys(self, fam_str, del_keys) -> None:
         del_cached_props(self, fam_str, del_keys)
 
-    # @classmethod
-    # def derived_quantity(cls, fn):
-    #     if cls not in SimSnap._derived_quantity_registry:
-    #         SimSnap._derived_quantity_registry[cls] = {}
-    #     SimSnap._derived_quantity_registry[cls][fn.__name__] = fn
-    #     fn.__stable__ = False
-    #     return fn
 
     @classmethod
     def derived_array(cls, fn):
@@ -48,6 +41,7 @@ class ZoomSnap:
         fn.__stable__ = False
         return fn
 
+    # TODO HOST
     # @property
     # def host(self) -> HostData:
     #     if self._host is None:
