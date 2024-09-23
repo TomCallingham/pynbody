@@ -6,7 +6,7 @@ from pynbody.snapshot import SimSnap
 
 
 class ZoomSnap:
-    def __init__(self, orientate=True, use_cache=True, analysis_folder=None) -> None:
+    def __init__(self, orientate=True, use_cache=False, analysis_folder=None) -> None:
         self.analysis_folder = analysis_folder
         self.use_cache = use_cache if analysis_folder is not None else False
         if orientate:

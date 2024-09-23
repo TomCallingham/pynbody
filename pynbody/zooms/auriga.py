@@ -85,7 +85,7 @@ class AurigaLikeHDFSnap(GadgetHDFSnap, AurigaStarsWind, ZoomSnap):
 
     _readable_hdf5_test_key = "PartType1/SubGroupNumber"
 
-    def __init__(self, particle_filename, halo_filename, analysis_folder, level=4, orientate=True, use_cache=True):
+    def __init__(self, particle_filename, halo_filename, analysis_folder, level=4, orientate=True, use_cache=False):
         GadgetHDFSnap.__init__(self, particle_filename)
         self.halo_file = halo_filename
         self.properties["eps"] = auriga_eps.get(level)

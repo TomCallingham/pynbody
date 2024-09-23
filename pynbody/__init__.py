@@ -16,6 +16,7 @@ import sys
 # We need to import configuration first, so prevent isort from reordering
 # isort: off
 from .configuration import config, logger, config_parser
+
 # isort: on
 from . import (
     analysis,
@@ -31,6 +32,7 @@ from . import (
     sph,
     transformation,
     util,
+    zooms,
 )
 
 
@@ -45,6 +47,7 @@ class PlotModuleProxy:
         global plot
         del plot
         from . import plot as plot_module
+
         plot = plot_module
 
     def __hasattr__(self, key):
@@ -69,12 +72,13 @@ class PlotModuleProxy:
     def __repr__(self):
         return "<Unloaded plot module>"
 
+
 plot = PlotModuleProxy()
 
 from .snapshot import load, new
 
 derived_array = snapshot.simsnap.SimSnap.derived_array
 
-__version__ = '2.0.0-beta.13'
+__version__ = "2.0.0-beta.13"
 
-__all__ = ['load', 'new', 'derived_array']
+__all__ = ["load", "new", "derived_array"]
