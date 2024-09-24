@@ -1,9 +1,9 @@
 import agama
 import os
 import numpy as np
-from pynbody import units
-import pynbody
-from pynbody.array import SimArray
+from .. import units
+from .. import snapshot
+from ..array import SimArray
 
 # define the physical units used in the code: the choice below corresponds to
 # length scale = 1 kpc, velocity = 1 km/s, mass = 1 Msun
@@ -101,7 +101,7 @@ def calc_action_angles(sim, angles=True) -> dict:
     pos, vel = sim["pos"].v, sim["vel"].v
     xyz = np.column_stack((pos, vel))
 
-    base = sim.base if isinstance(sim, pynbody.snapshot.FamilySubSnap) else sim
+    base = sim.base if isinstance(sim, snapshot.FamilySubSnap) else sim
     pot = base.potential
     J_finder = agama.ActionFinder(pot, interp=True)
     dyn = {}

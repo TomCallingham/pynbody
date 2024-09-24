@@ -1,7 +1,6 @@
 from collections.abc import Callable
 import os
-import pynbody
-from pynbody import transformation
+from .. import analysis, filt, transformation
 import numpy as np
 import h5py
 
@@ -23,16 +22,16 @@ def orientate_snap(self) -> None:
 def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc") -> dict:
     """also orientates!"""
     h0 = sim_snap.halos()[0]
-    x_cen = pynbody.analysis.halo.center(h0, retcen=True, cen_size=cen_size)
+    x_cen = analysis.halo.center(h0, retcen=True, cen_size=cen_size)
     tx = transformation.inverse_translate(sim_snap, x_cen)
-    v_cen = pynbody.analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
+    v_cen = analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
     tx = transformation.inverse_v_translate(tx, v_cen)
     #Why Gas?
     # Use gas from inner 5kpc to calculate angular momentum vector
-    gas_central = h0.gas[pynbody.filt.Sphere(disk_size)]
-    z_vec = pynbody.analysis.angmom.ang_mom_vec(gas_central)
+    gas_central = h0.gas[filt.Sphere(disk_size)]
+    z_vec = analysis.angmom.ang_mom_vec(gas_central)
     z_vec /= np.linalg.norm(z_vec)
-    z_Rot = pynbody.analysis.angmom.calc_faceon_matrix(z_vec)
+    z_Rot = analysis.angmom.calc_faceon_matrix(z_vec)
     tx = transformation.transform(tx, z_Rot)
     orientation = {"x_cen": x_cen, "v_cen": v_cen, "z_Rot": z_Rot}
     return orientation
