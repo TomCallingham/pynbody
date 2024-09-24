@@ -1,5 +1,5 @@
-from pynbody.array import SimArray
-from pynbody import units
+from ..array import SimArray
+from .. import units
 from .auriga import AurigaLikeHDFSnap
 import numpy as np
 
