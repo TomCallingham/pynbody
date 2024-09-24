@@ -32,7 +32,6 @@ from . import (
     sph,
     transformation,
     util,
-    zooms,
 )
 
 

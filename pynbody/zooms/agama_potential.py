@@ -1,8 +1,7 @@
 import agama
 import os
 import numpy as np
-from .. import units
-from .. import snapshot
+from .. import units, snapshot
 from ..array import SimArray
 
 # define the physical units used in the code: the choice below corresponds to
