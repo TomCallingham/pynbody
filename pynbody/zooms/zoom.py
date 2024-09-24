@@ -2,7 +2,7 @@ import agama
 from .orientation import lazy_orientate_snap
 from .agama_potential import agama_pynbody_load
 from .property_cache import del_cached_props, load_cached_props
-from pynbody.snapshot import SimSnap
+from ..snapshot import SimSnap
 
 
 class ZoomSnap:

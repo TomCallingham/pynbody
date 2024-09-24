@@ -4,9 +4,9 @@ import contextlib
 import os
 from functools import wraps
 import h5py
-from pynbody.array import SimArray
-from pynbody import family
-from pynbody.snapshot import FamilySubSnap
+from ..array import SimArray
+from .. import family
+from ..snapshot import FamilySubSnap
 
 
 def get_fam_str(sim) -> str:

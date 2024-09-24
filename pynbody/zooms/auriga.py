@@ -1,10 +1,10 @@
-from pynbody.halo.subfindhdf import ArepoSubfindHDFCatalogue
-from pynbody.snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
-from pynbody.halo import Halo
+from ..halo.subfindhdf import ArepoSubfindHDFCatalogue
+from ..snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
+from ..halo import Halo
 
-from pynbody.snapshot import IndexedSubSnap
-from pynbody.zooms.zoom import ZoomSnap
-from pynbody import units
+from ..snapshot import IndexedSubSnap
+from ..zooms.zoom import ZoomSnap
+from .. import units
 
 import h5py
 
