@@ -12,7 +12,6 @@ def orientate_snap(self) -> None:
     if os.path.isfile(fname):
         with h5py.File(fname, "r") as hf:
             orientation = {p: hf[p][:] for p in hf.keys()}  # type: ignore
-        # print(orientation)
         apply_pynbody_orientation(self, orientation)
     else:
         print("creating orienation")
@@ -28,6 +27,7 @@ def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc"
     tx = transformation.inverse_translate(sim_snap, x_cen)
     v_cen = pynbody.analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
     tx = transformation.inverse_v_translate(tx, v_cen)
+    #Why Gas?
     # Use gas from inner 5kpc to calculate angular momentum vector
     gas_central = h0.gas[pynbody.filt.Sphere(disk_size)]
     z_vec = pynbody.analysis.angmom.ang_mom_vec(gas_central)

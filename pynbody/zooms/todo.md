@@ -1,0 +1,3 @@
+- Why Orientate with Gas?
+- Is cache necessary? Probably not, cleaner to drop
+- calculated derivable arrays shouldn't have to be applied to the entire simulation, very wasteful! Atm, if I want the actions of a subselection of stars, the script calculates for every star, then makes a subselection. Crazy!

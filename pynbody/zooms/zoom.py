@@ -13,8 +13,7 @@ class ZoomSnap:
             lazy_orientate_snap(self)
         self._pot = None
         self._cache = None
-        # As we ALWAYS want physical units? Can this be turned on in config?
-        # Nothing but bugs :(
+        # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
 
     @property
@@ -41,16 +40,6 @@ class ZoomSnap:
         fn.__stable__ = False
         return fn
 
-    # TODO HOST
-    # @property
-    # def host(self) -> HostData:
-    #     if self._host is None:
-    #         h0 = self.halos()[0]
-    #         h0.physical_units()
-    #         print("Currently host on 0")
-    #         self._host = HostData(h0)
-    #     return self._host
-    #
 
-
+#Needed to load zoom attributes
 from . import zoom_attributes

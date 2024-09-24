@@ -41,18 +41,16 @@ def agama_pynbody_save(self, symm="axi") -> None:
 
 def agama_pynbody_calc(self, symm="axi", rcut=500) -> tuple:
     """
+    Fits axisymmetric potential to main subhalo in sim
     constructs a hybrid two-component basis expansion model of the potential for Auriga.
     dark matter and hot gas are represented by an expansion in spherical harmonics.
     remaining baryons (stars and cold gas) are represented by an azimuthal harmonic expansion in
     phi and a quintic spline in (R,z). (see Agama docs, sections 2.2.2 and 2.2.3 for more details).
-    Arguments:
-    Adapted from an example AGAMA script by Robyn Sanderson, with contributions from Andrew Wetzel, Eugene Vasiliev.
+    Adapted from an example AGAMA script by Robyn Sanderson, with contributions from Andrew Wetzel, Eugene Vasiliev,
+    by TomCallingham
     """
     print(f"reading {self}")
 
-    # h0_data = sim_snap.halos()[0].properties
-    # if rcut_R200:
-    #     rcut = rcut * Host['R200']
     h0 = self.halos()[0].sub[0]
     Gas = h0.gas
     Stars = h0.stars
@@ -99,7 +97,7 @@ def agama_vcirc(Rspace, pot) -> np.ndarray:
     return vcirc
 
 
-def calc_action_angles(sim, save=True, angles=True) -> dict:
+def calc_action_angles(sim, angles=True) -> dict:
     pos, vel = sim["pos"].v, sim["vel"].v
     xyz = np.column_stack((pos, vel))
 

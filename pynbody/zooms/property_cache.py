@@ -8,8 +8,6 @@ from pynbody.array import SimArray
 from pynbody import family
 from pynbody.snapshot import FamilySubSnap
 
-# from .agama_potential import action_angles_props, calc_action_angles
-
 
 def get_fam_str(sim) -> str:
     fams = sim.families()
@@ -100,6 +98,7 @@ def multiple_read(sim, data_dict, read_key, save=False) -> SimArray:
     fam = family_dict[fam_str]
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
     props = [p for p in list(data_dict.keys()) if p != read_key]
+
     for p in props:
         if p in base._family_arrays:
             base._family_arrays[p][fam] = data_dict[p]

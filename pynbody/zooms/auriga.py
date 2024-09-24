@@ -1,12 +1,10 @@
-from pynbody.halo.subfindhdf import ArepoSubfindHDFCatalogue, SubFindHDFHaloCatalogue
+from pynbody.halo.subfindhdf import ArepoSubfindHDFCatalogue
 from pynbody.snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
 from pynbody.halo import Halo
 
-# from pynbody.snapshot import IndexedSubSnap
+from pynbody.snapshot import IndexedSubSnap
 from pynbody.zooms.zoom import ZoomSnap
-
-import pynbody
-import numpy as np
+from pynbody import units
 
 import h5py
 
@@ -17,14 +15,14 @@ class AurigaStarsWind:
         self._winds = None
 
     @property
-    def stars(self):  # -> IndexedSubSnap:
+    def stars(self) -> IndexedSubSnap:
         if self._stars is None:
             stars = self.s  # pyright: ignore
             self._stars = stars[stars["aform"] > 0]
         return self._stars
 
     @property
-    def winds(self):  # -> IndexedSubSnap:
+    def winds(self) -> IndexedSubSnap:
         if self._winds is None:
             stars = self.s  # pyright: ignore
             self._winds = stars[stars["aform"] < 0]
@@ -74,10 +72,9 @@ class AurigaHalo(Halo, AurigaStarsWind):
     def __init__(self, halo_number, properties, halo_catalogue, *args, **kwa):
         Halo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
         AurigaStarsWind.__init__(self)
-        # self.physical_units()
 
 
-auriga_eps = {4: 369 * pynbody.units.pc, 3: 184 * pynbody.units.pc}
+auriga_eps = {4: 369 * units.pc, 3: 184 * units.pc}
 
 
 class AurigaLikeHDFSnap(GadgetHDFSnap, AurigaStarsWind, ZoomSnap):

@@ -2,15 +2,35 @@ import numpy as np
 from .zoom import ZoomSnap
 from .property_cache import cache_prop, multiple_read
 from .agama_potential import agama_vcirc, calc_action_angles
-from pynbody import units
-from pynbody.array import SimArray
-from pynbody.snapshot import FamilySubSnap
+from .. import units
+from ..array import SimArray
+from ..snapshot import FamilySubSnap
 
+from .property_cache import get_fam_str
 
 kms = units.km / units.s
 kms2 = kms * kms
 
 # TODO: Have units check? Or assume always physical units input
+#
+## convenience
+@ZoomSnap.derived_array
+def sub_id(sim) -> SimArray:
+    """Convenient function"""
+    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    fam = get_fam_str(sim)
+    sub_id = SimArray(base.halos(subhalos=True).get_group_array(family=fam))
+    sub_id.sim = sim
+    return sub_id
+
+@ZoomSnap.derived_array
+def group_id(sim) -> SimArray:
+    """Convenient function"""
+    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    fam = get_fam_str(sim)
+    halo_id = SimArray(base.halos().get_group_array(family=fam))
+    halo_id.sim = sim
+    return halo_id
 
 
 @ZoomSnap.derived_array
@@ -227,3 +247,4 @@ def JR_Jtot(sim) -> SimArray:
 def Jz_Jtot(sim) -> SimArray:
     """Used in J_diamond"""
     return sim["Jz"] / sim["Jtot"]
+
