@@ -1,7 +1,8 @@
+import numpy as np
 from ..array import SimArray
 from .. import units
+
 from .auriga import AurigaLikeHDFSnap
-import numpy as np
 
 HubbleTime = 13.815
 

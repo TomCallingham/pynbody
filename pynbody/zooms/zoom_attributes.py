@@ -1,12 +1,11 @@
 import numpy as np
-from .zoom import ZoomSnap
-from .property_cache import cache_prop, multiple_read
-from .agama_potential import agama_vcirc, calc_action_angles
 from .. import units
 from ..array import SimArray
 from ..snapshot import FamilySubSnap
 
-from .property_cache import get_fam_str
+from .agama_potential import agama_vcirc, calc_action_angles
+from .zoom import ZoomSnap
+from .property_cache import cache_prop, multiple_read, get_fam_str
 
 kms = units.km / units.s
 kms2 = kms * kms

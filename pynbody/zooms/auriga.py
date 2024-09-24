@@ -1,10 +1,10 @@
 from ..halo.subfindhdf import ArepoSubfindHDFCatalogue
 from ..snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
 from ..halo import Halo
-
 from ..snapshot import IndexedSubSnap
-from ..zooms.zoom import ZoomSnap
 from .. import units
+
+from .zoom import ZoomSnap
 
 import h5py
 
