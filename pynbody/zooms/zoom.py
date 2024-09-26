@@ -1,8 +1,7 @@
-import agama
+# import agama
 from ..snapshot import SimSnap
 
 from .orientation import lazy_orientate_snap
-from .agama_potential import agama_pynbody_load
 from .property_cache import del_cached_props, load_cached_props
 
 
@@ -18,8 +17,9 @@ class ZoomSnap:
         self.physical_units()
 
     @property
-    def potential(self) -> agama.Potential:
+    def potential(self): #-> agama.Potential:
         if self._pot is None:
+            from .agama_potential import agama_pynbody_load
             self._pot = agama_pynbody_load(self, symm="axi")
         return self._pot
 
