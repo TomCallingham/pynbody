@@ -27,7 +27,7 @@ def temp(sim) -> SimArray:
 
 @AurigaLikeHDFSnap.derived_quantity
 def tform(sim) -> SimArray:
-    formT = sim["GFM_StellarFormationTime"] * HubbleTime
+    formT = sim["aform"] * HubbleTime
     formT = SimArray(formT)
     formT.sim, formT.units = sim, units.Gyr
     return formT
