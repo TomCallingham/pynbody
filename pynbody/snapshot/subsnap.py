@@ -36,6 +36,7 @@ class ExposedBaseSnapshotMixin:
 
 class SubSnapBase(SimSnap):
     def __init__(self, base):
+        # print("subsnap 39")
         self._subsnap_base = base
 
     def _get_array(self, name, index=None, always_writable=False):
@@ -119,17 +120,23 @@ class SubSnapBase(SimSnap):
 
         self._subsnap_base.write_array(array_name, fam=fam, **kwargs)
 
-    def _derive_array(self, array_name, fam=None):
-        self._subsnap_base._derive_array(array_name, fam)
+    #ME
+    # def _derive_array(self, array_name, fam=None):
+    #     print("In subsnapDerive!")
+    #     self._subsnap_base._derive_array(array_name, fam)
 
     def family_keys(self, fam=None):
         return self._subsnap_base.family_keys(fam)
 
-    def _create_array(self, *args, **kwargs):
-        self._subsnap_base._create_array(*args, **kwargs)
+    #ME
+    # def _create_array(self, *args, **kwargs):
+    #     print("In subarray subsnap create_array")
+    #     self._subsnap_base._create_array(*args, **kwargs)
 
-    def _create_family_array(self, *args, **kwargs):
-        self._subsnap_base._create_family_array(*args, **kwargs)
+    # ME
+    # def _create_family_array(self, *args, **kwargs):
+    #     print("In subarray framily subsnap create family array")
+    #     self._subsnap_base._create_family_array(*args, **kwargs)
 
     def physical_units(self, *args, **kwargs):
         self._subsnap_base.physical_units(*args, **kwargs)
@@ -157,6 +164,7 @@ class SubSnap(ExposedBaseSnapshotMixin, SubSnapBase):
     sub-viewed using the given slice."""
 
     def __init__(self, base, _slice):
+        # print("161 SubSnap")
         super().__init__(base)
         self._inherit()
 
@@ -288,6 +296,7 @@ class IndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSnapBase):
     """
 
     def __init__(self, base, index_array=None, iord_array=None, *args, **kwargs):
+        # print("293 Indexed SubSnap")
         super().__init__(base, index_array=index_array, iord_array=iord_array, *args, **kwargs)
         self._inherit()
 
@@ -348,9 +357,10 @@ class FamilySubSnap(SubSnap):
         except KeyError:
             return self._subsnap_base._get_family_array(name, self._unifamily, index, always_writable)
 
-    def _create_array(self, array_name, ndim=1, dtype=None, zeros=True, derived=False, shared=None):
-        # Array creation now maps into family-array creation in the parent
-        self._subsnap_base._create_family_array(array_name, self._unifamily, ndim, dtype, derived, shared)
+    #ME
+    # def _create_array(self, array_name, ndim=1, dtype=None, zeros=True, derived=False, shared=None):
+    #     # Array creation now maps into family-array creation in the parent
+    #     self._subsnap_base._create_family_array(array_name, self._unifamily, ndim, dtype, derived, shared)
 
     def _set_array(self, name, value, index=None):
         if name in list(self._subsnap_base.keys()):

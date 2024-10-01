@@ -34,9 +34,13 @@ def group_id(sim) -> SimArray:
 @ZoomSnap.derived_array
 @cache_prop
 def U(sim) -> SimArray:
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    print("U!")
+    # base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
-    U_pot = SimArray(pot.potential(sim["pos"].view(np.ndarray)))
+    pos = sim["pos"].view(np.ndarray)
+    print(pos.shape)
+    U_pot = SimArray(pot.potential(pos))
     U_pot.sim, U_pot.units = sim, kms2
     return U_pot
 
