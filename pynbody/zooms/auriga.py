@@ -87,7 +87,7 @@ class AurigaLikeHDFSnap(GadgetHDFSnap, AurigaStarsWind, ZoomSnap):
         self.halo_file = halo_filename
         self.properties["eps"] = auriga_eps.get(level)
         AurigaStarsWind.__init__(self)
-        # self.physical_units()
+        self.physical_units()
         ZoomSnap.__init__(self, orientate, use_cache=use_cache, analysis_folder=analysis_folder)
 
     def halos(self, subhalos=False) -> AurigaSubfindHDFCatalogue:
@@ -138,7 +138,7 @@ auriga_bad_keys = [
     "ofe",
     "I_mag",
     "K_lum_den",
-    "aform",
+    # "aform",
     "r_lum_den",
     "HeII",
     "sixh",

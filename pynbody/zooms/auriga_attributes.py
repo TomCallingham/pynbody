@@ -25,19 +25,19 @@ def temp(sim) -> SimArray:
     return temp
 
 
-@AurigaLikeHDFSnap.derived_quantity
-def tform(sim) -> SimArray:
-    formT = sim["aform"] * HubbleTime
-    formT = SimArray(formT)
-    formT.sim, formT.units = sim, units.Gyr
-    return formT
+# @AurigaLikeHDFSnap.derived_quantity
+# def my_tform(sim) -> SimArray:
+#     print("in time formation!")
+#     formT = sim["tform"].in_units("Gyr")
+#     print(formT.units)
+#     return formT
 
 
-@AurigaLikeHDFSnap.derived_quantity
-def age(sim) -> SimArray:
-    age = (HubbleTime * units.Gyr) - sim["tform"]
-    age.sim, age.units = sim, units.Gyr
-    return age
+# @AurigaLikeHDFSnap.derived_quantity
+# def my_age(sim) -> SimArray:
+#     age = (HubbleTime * units.Gyr) - sim["my_tform"]
+#     age = age.in_units("Gyr")
+#     return age
 
 
 # Chemistry
