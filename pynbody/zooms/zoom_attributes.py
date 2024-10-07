@@ -15,7 +15,14 @@ kms2 = kms * kms
 @ZoomSnap.derived_array
 def sub_id(sim) -> SimArray:
     """Convenient function"""
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    if hasattr(sim, "ancestor_family"):
+        print("strange load, ancestory family")
+        anc = sim.ancestor_family
+        fam = get_fam_str(anc)
+        sub_id_anc = SimArray(anc.ancestor.halos(subhalos=True).get_group_array(family=fam))
+        sub_id_anc.sim = anc
+        return sub_id_anc[sim.ancestors_index[anc]]
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
     fam = get_fam_str(sim)
     sub_id = SimArray(base.halos(subhalos=True).get_group_array(family=fam))
     sub_id.sim = sim
@@ -24,7 +31,7 @@ def sub_id(sim) -> SimArray:
 @ZoomSnap.derived_array
 def group_id(sim) -> SimArray:
     """Convenient function"""
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
     fam = get_fam_str(sim)
     halo_id = SimArray(base.halos().get_group_array(family=fam))
     halo_id.sim = sim
@@ -66,7 +73,7 @@ def Lperp(sim) -> SimArray:
 
 
 def calc_peri_apo(sim) -> dict[str, SimArray]:
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
     E, L = sim["E"].view(np.ndarray), sim["L"].view(np.ndarray)
     peri_apo = pot.Rperiapo(np.column_stack((E, L)))
@@ -100,7 +107,7 @@ def ecc(sim) -> SimArray:
 
 @ZoomSnap.derived_array
 def RcircE(sim) -> SimArray:
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
     E = sim["E"].view(np.ndarray)
     RcircE = SimArray(pot.Rcirc(E=E))
@@ -109,7 +116,7 @@ def RcircE(sim) -> SimArray:
 
 @ZoomSnap.derived_array
 def RcircL(sim) -> SimArray:
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
     L = sim["L"].view(np.ndarray)
     RcircL = SimArray(pot.Rcirc(L=L))
@@ -126,7 +133,7 @@ def circ(sim) -> SimArray:
 @ZoomSnap.derived_array
 @cache_prop
 def Tcirc(sim) -> SimArray:
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
     E = sim["E"].view(np.ndarray)
     Tcirc = SimArray(pot.Tcirc(E))
@@ -137,7 +144,7 @@ def Tcirc(sim) -> SimArray:
 @ZoomSnap.derived_array
 def Lcirc_E(sim) -> SimArray:
 
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
+    base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
     E = sim["E"].view(np.ndarray)
     NR = 1000

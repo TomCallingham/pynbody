@@ -7,6 +7,7 @@ import h5py
 from ..array import SimArray
 from .. import family
 from ..snapshot import FamilySubSnap
+from ..snapshot.subsnap import HierarchyIndexedSubSnap
 
 
 def get_fam_str(sim) -> str:
@@ -94,16 +95,24 @@ def multiple_read(sim, data_dict, read_key, save=False) -> SimArray:
     # TODO: This is currently for one family only
     if save:
         save_multiple_cached(sim, data_dict)
+
+    props = [p for p in list(data_dict.keys()) if p != read_key]
+
+    if isinstance(sim,HierarchyIndexedSubSnap):
+        for p in props:
+            sim._arrays[p] = data_dict[p]
+        return data_dict[read_key]
+
     fam_str = get_fam_str(sim)
     fam = family_dict[fam_str]
     base = sim.base if isinstance(sim, FamilySubSnap) else sim
-    props = [p for p in list(data_dict.keys()) if p != read_key]
 
     for p in props:
         if p in base._family_arrays:
             base._family_arrays[p][fam] = data_dict[p]
         else:
             base._family_arrays[p] = {fam: data_dict[p]}
+
     return data_dict[read_key]
 
 

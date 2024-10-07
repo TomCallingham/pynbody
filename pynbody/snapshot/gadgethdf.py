@@ -493,54 +493,81 @@ class GadgetHDFSnap(SimSnap):
 
         return arr_units
 
-    def _load_array(self, array_name, fam=None):
+    def _load_array(self, array_name, fam=None,target=None):
+        # print(f"In GadgetHDFSnap Read: {array_name} {fam}")
+        # print(self)
         if not self._family_has_loadable_array(fam, array_name):
+            print("Not loadable!")
             raise OSError("No such array on disk")
+        translated_names = self._translate_array_name(array_name)
+        dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
+
+        if array_name=='mass':
+            dtype = self._mass_dtype
+            # always load mass with this dtype, even if not the one in the file. This
+            # is to cope with cases where it's partly in the header and partly not.
+            # It also forces masses to the same dtype as the positions, which
+            # is important for the KDtree code.
+
+        if fam is None:
+            target = self if target is None else target
+            # all_fams_to_load = self.families()
         else:
+            target = self[fam] if target is None else target
+            # all_fams_to_load = [fam]
+        all_fams_to_load = target.families()
 
-            translated_names = self._translate_array_name(array_name)
-            dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
+        # print("\n")
+        # print("Gadget creating array!")
+        # print(target)
+        target._create_array(array_name, dy, dtype=dtype)
+        # print("Created!")
+        # print("\n\n")
 
-            if array_name=='mass':
-                dtype = self._mass_dtype
-                # always load mass with this dtype, even if not the one in the file. This
-                # is to cope with cases where it's partly in the header and partly not.
-                # It also forces masses to the same dtype as the positions, which
-                # is important for the KDtree code.
+        # print("GEtting for units!")
+        if units is not None:
+            target[array_name].units = units
+        else:
+            target[array_name].set_default_units()
 
-            if fam is None:
-                target = self
-                all_fams_to_load = self.families()
-            else:
-                target = self[fam]
-                all_fams_to_load = [fam]
+        # print("Units set")
+        # print("\n\n")
 
-            target._create_array(array_name, dy, dtype=dtype)
+        for loading_fam in all_fams_to_load:
+            i0 = 0
+            #Me 
+            set_array = self[loading_fam][array_name]
+            for hdf in self._all_hdf_groups_in_family(loading_fam):
+                # print(f"loading index: {i0}")
+                npart = hdf['ParticleIDs'].size
+                if npart == 0:
+                    continue
+                i1 = i0+npart
 
-            if units is not None:
-                target[array_name].units = units
-            else:
-                target[array_name].set_default_units()
-
-            for loading_fam in all_fams_to_load:
-                i0 = 0
-                for hdf in self._all_hdf_groups_in_family(loading_fam):
-                    npart = hdf['ParticleIDs'].size
-                    if npart == 0:
+                for translated_name in translated_names:
+                    try:
+                        dataset = self._get_hdf_dataset(hdf, translated_name)
+                    except KeyError:
                         continue
-                    i1 = i0+npart
+                # target_array = self[loading_fam][array_name][i0:i1]
+                target_array = set_array[i0:i1]
+                assert target_array.size == dataset.size
 
-                    for translated_name in translated_names:
-                        try:
-                            dataset = self._get_hdf_dataset(hdf, translated_name)
-                        except KeyError:
-                            continue
-                    target_array = self[loading_fam][array_name][i0:i1]
-                    assert target_array.size == dataset.size
+                dataset.read_direct(target_array.reshape(dataset.shape))
 
-                    dataset.read_direct(target_array.reshape(dataset.shape))
+                i0 = i1
+            # print("\n \n")
+            # print("Gadget Fam array loaded!")
+            # print("check!")
+            # print(set_array)
+            # print(self[loading_fam][array_name])
 
-                    i0 = i1
+        # print("\n \n")
+        # print("Gadget array loaded!")
+        # print("\n \n")
+        # print(set_array)
+        # print(self[loading_fam][array_name])
+
 
     def __get_dtype_dims_and_units(self, fam, translated_names):
         if fam is None:
