@@ -399,10 +399,12 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
 
 
     def __init__(self, base, index_array=None, iord_array=None, *args, **kwargs):
+        #TODO: Currently only makes sense if taken from a FamilySubsnap
         # print("401 New Hierarchy SubSnap!")
         super().__init__(base, index_array=index_array, iord_array=iord_array, *args, **kwargs)
         self._inherit()
         self._arrays = {}
+        self._family_arrays = {}
         self._init_ancestors_arrays()
         self._init_ancestors_index()
         self._init_family_ancestor()
@@ -442,19 +444,15 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         '''for now load into base, then load from base with indexes, then delete from base
             todo: load straight into current level to avoid large arrays. Custom load and filter neeeded!
         '''
-        print("In Hierarchy load array!")
-        print("fam = ",fam)
-        # print("base=")
-        # print(self.base)
-        # print("ancestor=")
-        # print(self.ancestor)
-        self.ancestor._load_array(array_name, fam)#,target=self)
+        # print("In Hierarchy load array!")
+        # print("fam = ",fam)
+        
+        self.ancestor._load_array(array_name, fam) #,target=self)
+
         if fam is None:
             self._arrays[array_name] = self.ancestor._arrays[array_name][self.ancestors_index[self.base]]
             del self.ancestor._arrays[array_name]
         else:
-            # print(self.ancestor._arrays)
-            # print(self.ancestor._family_arrays)
             self._arrays[array_name] = self.ancestor._family_arrays[array_name][fam][self.ancestors_index[self.base]]
             del self.ancestor._family_arrays[array_name][fam]
             if len(self.ancestor._family_arrays[array_name])==0:
@@ -503,6 +501,7 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
 
     def set_master_selection(self):
         '''Make selection the master collection of arrays. Useful for key subsets'''
+        #TODO Be able to select master level
         self.master_selection=True
         print("Should make selections propergate up!")
 
@@ -524,23 +523,29 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         SimSnap._create_array(self,*args, **kwargs)
 
     def _set_array(self, name, value, index=None):
-        print("In my Hierarchy _set_array!")
+        # print("In my Hierarchy _set_array!")
         assert len(value) == len(self)
-        print(name)
-
-        if name in self._arrays.keys():
-            print("overwriting!")
-            print("before")
-            print(self._arrays[name])
-
         self._arrays[name] = value
-        print("after")
-        print(value)
         # if name in list(self._subsnap_base.keys()):
         #     self._subsnap_base._set_array(
         #         name, value, pynbody.util.indexing_tricks.concatenate_indexing(self._slice, index))
         # else:
         #     self._subsnap_base._set_family_array(name, self._unifamily, value, index)
+        #
+    def __delitem__(self, name):
+        if name in self._family_arrays:
+            # mustn't have simulation-level array of this name
+            assert name not in self._arrays
+            del self._family_arrays[name]
+
+            for v in self._family_derived_array_names.values():
+                if name in v:
+                    del v[v.index(name)]
+
+        else:
+            del self._arrays[name]
+            if name in self._derived_array_names:
+                del self._derived_array_names[self._derived_array_names.index(name)]
 
     ###Unchanged!
     def _get_family_slice(self, fam):

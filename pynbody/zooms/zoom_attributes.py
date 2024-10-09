@@ -14,34 +14,45 @@ kms2 = kms * kms
 
 # TODO: Have units check? Or assume always physical units input
 #
+
 @ZoomSnap.derived_array
 def pos(sim) -> SimArray:
     '''lazy translation!'''
-    print("In new pos!")
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    if not base.orientate:
+        return sim["raw_pos"]
     orientation_dic = base.orientation
-    x_cen, z_Rot = orientation_dic["x_cen"]*units.kpc, orientation_dic["z_Rot"]
+    x_cen, z_Rot = orientation_dic.get("x_cen"), orientation_dic.get("z_Rot")
+    pos = sim["raw_pos"].v
+    if x_cen is not None:
+        pos-=x_cen
+    if z_Rot is not None:
+        pos = single_rotation(z_Rot,pos)
+    pos = SimArray(pos)
     u = sim["raw_pos"].units
-    pos = SimArray(single_rotation(z_Rot,sim["raw_pos"] - x_cen))
-    del sim["raw_pos"]
+    # del sim["raw_pos"]
     pos.sim, pos.units = sim,u
-    print("Orientated!")
     return pos
-
 
 @ZoomSnap.derived_array
 def vel(sim) -> SimArray:
     '''lazy translation!'''
-    print("In new vel!")
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    if not base.orientate:
+        return sim["raw_vel"]
     orientation_dic = base.orientation
-    v_cen, z_Rot = orientation_dic["v_cen"]*kms, orientation_dic["z_Rot"]
-    vel = SimArray(single_rotation(z_Rot,sim["raw_vel"] - v_cent))
+    v_cen, z_Rot = orientation_dic.get("v_cen"), orientation_dic.get("z_Rot")
+    vel = sim["raw_vel"].v
+    if v_cen is not None:
+        vel-=v_cen
+    if z_Rot is not None:
+        vel = single_rotation(z_Rot,vel)
+    vel = SimArray(vel)
     u = sim["raw_vel"].units
-    del sim["raw_vel"]
+    # del sim["raw_vel"]
     vel.sim, vel.units = sim,u
-    print("Orientated!")
     return vel
+
 
 ## convenience
 @ZoomSnap.derived_array
@@ -68,12 +79,11 @@ def group_id(sim) -> SimArray:
 @ZoomSnap.derived_array
 @cache_prop
 def U(sim) -> SimArray:
-    print("U!")
+    # print("U!")
     # base = sim.base if isinstance(sim, FamilySubSnap) else sim
     base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
     pos = sim["pos"].view(np.ndarray)
-    print(pos.shape)
     U_pot = SimArray(pot.potential(pos))
     U_pot.sim, U_pot.units = sim, kms2
     return U_pot

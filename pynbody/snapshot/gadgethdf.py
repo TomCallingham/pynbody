@@ -497,14 +497,7 @@ class GadgetHDFSnap(SimSnap):
             raise OSError("No such array on disk")
 
         translated_names = self._translate_array_name(array_name)
-        print("In HDF load array original")
-        print(array_name)
-        print(translated_names)
-        print(self)
-        print(self._translate_array_name)
         dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
-        print("units!")
-        print(units)
 
         if array_name=='mass':
             dtype = self._mass_dtype
