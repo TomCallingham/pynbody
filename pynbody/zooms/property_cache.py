@@ -16,6 +16,45 @@ def get_fam_str(sim) -> str:
         raise AttributeError("Only one family at a time for this property")
     return str(fams[0])
 
+family_dict = {"dm": family.dm, "gas": family.gas, "star": family.star}
+
+
+def multiple_read(sim, data_dict, read_key, save=False) -> SimArray:
+    """adds multiple properties to the sim at once, returning the chosen value"""
+    # TODO: This is currently for one family only
+    if save:
+        save_multiple_cached(sim, data_dict)
+
+    props = [p for p in list(data_dict.keys()) if p != read_key]
+
+    if isinstance(sim,HierarchyIndexedSubSnap):
+        for p in props:
+            sim._arrays[p] = data_dict[p]
+        return data_dict[read_key]
+
+    fam_str = get_fam_str(sim)
+    fam = family_dict[fam_str]
+    base = sim.ancestor if isinstance(sim, FamilySubSnap) else sim
+
+    for p in props:
+        if p in base._family_arrays:
+            base._family_arrays[p][fam] = data_dict[p]
+        else:
+            base._family_arrays[p] = {fam: data_dict[p]}
+
+    return data_dict[read_key]
+
+def top_hierarchy_family(func) -> Callable:
+    @wraps(func)
+    def wrapper(sim):
+        print("New top hierarchy func!")
+        if not hasattr(sim, "ancestor_family"):
+            return func(sim)
+        anc = sim.ancestor_family
+        result = func(anc)
+        return result[sim.ancestors_index[anc]]
+    return wrapper
+
 
 def cache_prop(func) -> Callable:
     @wraps(func)
@@ -87,33 +126,7 @@ def del_cached_props(sim, fam, del_props) -> None:
                 del hf[p]
 
 
-family_dict = {"dm": family.dm, "gas": family.gas, "star": family.star}
 
-
-def multiple_read(sim, data_dict, read_key, save=False) -> SimArray:
-    """adds multiple properties to the sim at once, returning the chosen value"""
-    # TODO: This is currently for one family only
-    if save:
-        save_multiple_cached(sim, data_dict)
-
-    props = [p for p in list(data_dict.keys()) if p != read_key]
-
-    if isinstance(sim,HierarchyIndexedSubSnap):
-        for p in props:
-            sim._arrays[p] = data_dict[p]
-        return data_dict[read_key]
-
-    fam_str = get_fam_str(sim)
-    fam = family_dict[fam_str]
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
-
-    for p in props:
-        if p in base._family_arrays:
-            base._family_arrays[p][fam] = data_dict[p]
-        else:
-            base._family_arrays[p] = {fam: data_dict[p]}
-
-    return data_dict[read_key]
 
 
 def save_multiple_cached(sim, data_dict) -> None:

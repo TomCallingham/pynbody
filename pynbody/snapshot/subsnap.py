@@ -223,17 +223,6 @@ class IndexingViewMixin:
         else:
             index_array = np.asarray(index_array)
 
-        if self._unifamily is not None:
-            #Me
-            # print("IndexinViewMixin Early exit to avoid family index")
-            # print("self._unifamily=",self._unifamily)
-            self._slice = index_array
-            self._family_slice = {}
-            self._family_indices = {}
-            self._num_particles = len(index_array)
-
-            return
-
         findex = self._subsnap_base._family_index()[index_array]
 
         if allow_family_sort:
@@ -362,8 +351,7 @@ class FamilySubSnap(SubSnap):
         except KeyError:
             return self._subsnap_base._get_family_array(name, self._unifamily, index, always_writable)
 
-    #ME
-    def _create_array(self, array_name, ndim=1, dtype=None, zeros=True, derived=False, shared=None):
+    def _create_array(self, array_name, ndim=1, dtype=None, zeros=False, derived=False, shared=None):
         # Array creation now maps into family-array creation in the parent
         self._subsnap_base._create_family_array(array_name, self._unifamily, ndim, dtype, derived, shared)
 
@@ -430,6 +418,7 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             #
         else:
             # print("New Hierarchy")
+            #TOOD Add loadable_keys here? or seperate?
             self._ancestors_of_arrays = {key:self._subsnap_base for key in self._subsnap_base.keys()}
         # print(self._ancestors_of_arrays)
 
@@ -440,41 +429,36 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             for ancestor in set(self._subsnap_base.ancestors_index.keys()):
                 self.ancestors_index[ancestor]=self._subsnap_base.ancestors_index[ancestor][self._slice]
     def _init_family_ancestor(self):
+        '''need to know if from a family snap, so can lookup loadable keys specific for fam'''
         if isinstance(self._subsnap_base,HierarchyIndexedSubSnap):
             self.ancestor_family = self._subsnap_base.ancestor_family
         elif isinstance(self._subsnap_base,FamilySubSnap):
             self.ancestor_family = self._subsnap_base
         else:
-            print("ancestor family not known!")
             self.ancestor_family=None    
 
-    def _get_family_slice(self, fam):
-        # A bit messy: jump out the SubSnap inheritance chain
-        # and call SimSnap method directly...
-        return SimSnap._get_family_slice(self, fam)
 
-    def _get_family_array(self, name, fam, index=None, always_writable=False):
-        sl = self._family_indices.get(fam,slice(0,0))
-        sl = pynbody.util.indexing_tricks.concatenate_indexing(sl, index)
-        return self._subsnap_base._get_family_array(name, fam, sl, always_writable)
-
-    def _set_family_array(self, name, family, value, index=None):
-        self._subsnap_base._set_family_array(name, family, value,
-                                             pynbody.util.indexing_tricks.concatenate_indexing(self._family_indices[family], index))
-
-    # def _load_array(self, array_name, fam=None, **kwargs):
-    #     print("In my Hierarchy load array!")
-    #     if array_name in self._indexed_arrays.keys():
-    #         print("in local keys!")
-    #         return self._indexed_arrays[array_name]
-    #     elif array_name in self._ancestors_of_arrays.keys():
-    #         ancestor_snap = self._ancestors_of_arrays[array_name]
-    #         return ancestor_snap[array_name][self.ancestors_index[ancestor_snap]]
-
-    #     # self.ancestor._load_array()
-    #     self._subsnap_base._load_array(array_name, fam)
-    #     # SimSnap._derive_array(self,array_name, fam)
-    #     #
+    def _load_array(self, array_name, fam=None, **kwargs):
+        '''for now load into base, then load from base with indexes, then delete from base
+            todo: load straight into current level to avoid large arrays. Custom load and filter neeeded!
+        '''
+        print("In Hierarchy load array!")
+        print("fam = ",fam)
+        # print("base=")
+        # print(self.base)
+        # print("ancestor=")
+        # print(self.ancestor)
+        self.ancestor._load_array(array_name, fam)#,target=self)
+        if fam is None:
+            self._arrays[array_name] = self.ancestor._arrays[array_name][self.ancestors_index[self.base]]
+            del self.ancestor._arrays[array_name]
+        else:
+            # print(self.ancestor._arrays)
+            # print(self.ancestor._family_arrays)
+            self._arrays[array_name] = self.ancestor._family_arrays[array_name][fam][self.ancestors_index[self.base]]
+            del self.ancestor._family_arrays[array_name][fam]
+            if len(self.ancestor._family_arrays[array_name])==0:
+                del self.ancestor._family_arrays[array_name]
 
 
     def _get_array(self, name, index=None, always_writable=False):
@@ -486,11 +470,23 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             self._init_ancestors_arrays()
 
         if name in self._arrays.keys():
-            print("in local keys!")
+            # print("in local keys!")
+            # print(name)
             return self._arrays[name]
         elif name in self._ancestors_of_arrays.keys():
-            print("in ancestor keys!")
+            # print("in ancestor keys!")
             ancestor_snap = self._ancestors_of_arrays[name]
+            # print("current:")
+            # print(self)
+            # print("selected ancestor:")
+            # print(ancestor_snap)
+            x = ancestor_snap[name][self.ancestors_index[ancestor_snap]]
+            if self.master_selection:
+                self._arrays=x
+            return x
+        elif self.ancestor_family is not None and name in self.ancestor_family.all_keys():
+            # print("in ancestor all_keys!")
+            ancestor_snap = self.ancestor_family
             # print("current:")
             # print(self)
             # print("selected ancestor:")
@@ -510,10 +506,6 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         self.master_selection=True
         print("Should make selections propergate up!")
 
-
-
-
-
     def keys(self):
         # print("init ancestors every key check?")
         # self._init_ancestors_arrays()
@@ -521,75 +513,46 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
 
 
     def _derive_array(self, array_name, fam=None):
-        print("In my Hierarchy derive array!")
+        # print("In my Hierarchy derive array!")
         # self._subsnap_base._derive_array(array_name, fam)
         SimSnap._derive_array(self,array_name, fam)
 
     def _create_array(self, *args, **kwargs):
-        print("In my Hierarchy _create_array!")
+        # print("In my Hierarchy _create_array!")
         # self._subsnap_base._create_array(*args, **kwargs)
+        # Loading needs to be fixed for this to work!
         SimSnap._create_array(self,*args, **kwargs)
 
-    # def _create_array_my(self, array_name, ndim=1, dtype=None, zeros=False, derived=False, shared=None, source_array=None):
-    #     print("\n")
-    #     print("creating array! In my new")
-    #     print(self)
-    #     print("\n")
-    #     """Create a single snapshot-level array of dimension len(self) x ndim, with
-    #     a given numpy dtype.
+    def _set_array(self, name, value, index=None):
+        print("In my Hierarchy _set_array!")
+        assert len(value) == len(self)
+        print(name)
 
-    #     *kwargs*:
+        if name in self._arrays.keys():
+            print("overwriting!")
+            print("before")
+            print(self._arrays[name])
 
-    #       - *ndim*: the number of dimensions for each particle
-    #       - *dtype*: a numpy datatype for the new array
-    #       - *zeros*: if True, zeros the array (which takes a bit of time); otherwise
-    #         the array is uninitialized
-    #       - *derived*: if True, this new array will be flagged as a derived array
-    #         which makes it read-only
-    #       - *shared*: if True, the array will be built on top of a shared-memory array
-    #         to make it possible to access from another process. If 'None' (default), shared
-    #         memory will be used if the snapshot prefers it, otherwise not.
-    #       - *source_array*: if provided, the SimSnap will take ownership of this specified
-    #         array rather than create a new one
-    #     """
+        self._arrays[name] = value
+        print("after")
+        print(value)
+        # if name in list(self._subsnap_base.keys()):
+        #     self._subsnap_base._set_array(
+        #         name, value, pynbody.util.indexing_tricks.concatenate_indexing(self._slice, index))
+        # else:
+        #     self._subsnap_base._set_family_array(name, self._unifamily, value, index)
 
-    #     # Does this actually correspond to a slice into a 3D array?
-    #     NDname = self._array_name_1D_to_ND(array_name)
-    #     if NDname:
-    #         self._create_array(NDname, ndim=3, dtype=dtype, zeros=zeros, derived=derived)
-    #         return
+    ###Unchanged!
+    def _get_family_slice(self, fam):
+        # A bit messy: jump out the SubSnap inheritance chain
+        # and call SimSnap method directly...
+        return SimSnap._get_family_slice(self, fam)
 
-    #     if ndim == 1:
-    #         dims = (self._num_particles,)
-    #     else:
-    #         dims = (self._num_particles, ndim)
+    def _get_family_array(self, name, fam, index=None, always_writable=False):
+        sl = self._family_indices.get(fam,slice(0,0))
+        sl = pynbody.util.indexing_tricks.concatenate_indexing(sl, index)
+        return self._subsnap_base._get_family_array(name, fam, sl, always_writable)
 
-    #     if shared is None:
-    #         # shared = self._shared_arrays
-    #         print("make shared false if not _shared_arrays! SimSnap.Create Array")
-    #         print(self)
-    #         shared = self._shared_arrays if hasattr(self,"_shared_arrays") else False
-
-    #     if source_array is None:
-    #         source_array = array.array_factory(dims, dtype, zeros, shared)
-    #     else:
-    #         assert isinstance(source_array, array.SimArray)
-    #         assert source_array.shape == dims
-
-    #     source_array._sim = weakref.ref(self)
-    #     source_array._name = array_name
-    #     source_array.family = None
-
-    #     self._arrays[array_name] = source_array
-
-    #     if derived:
-    #         if array_name not in self._derived_array_names:
-    #             self._derived_array_names.append(array_name)
-
-    #     if ndim == 3:
-    #         array_name_1D = self._array_name_ND_to_1D(array_name)
-
-    #         for i, a in enumerate(array_name_1D):
-    #             self._arrays[a] = source_array[:, i]
-    #             self._arrays[a]._name = a
-
+    def _set_family_array(self, name, family, value, index=None):
+        self._subsnap_base._set_family_array(name, family, value,
+                                             pynbody.util.indexing_tricks.concatenate_indexing(self._family_indices[family], index))

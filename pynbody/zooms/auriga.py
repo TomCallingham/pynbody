@@ -77,7 +77,7 @@ class AurigaHalo(Halo, AurigaStarsWind):
 auriga_eps = {4: 369 * units.pc, 3: 184 * units.pc}
 
 
-class AurigaLikeHDFSnap(GadgetHDFSnap, AurigaStarsWind, ZoomSnap):
+class AurigaLikeHDFSnap(ZoomSnap,GadgetHDFSnap, AurigaStarsWind):
     """Reads AurigaHDF"""
 
     _readable_hdf5_test_key = "PartType1/SubGroupNumber"
@@ -102,6 +102,7 @@ class AurigaLikeHDFSnap(GadgetHDFSnap, AurigaStarsWind, ZoomSnap):
         keys = GadgetHDFSnap.derivable_keys(self)
         res = [key for key in keys if key not in auriga_bad_keys]
         return res
+
 
 
 auriga_bad_keys = [

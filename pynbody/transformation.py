@@ -338,12 +338,24 @@ class GenericTranslation(Transformation):
         description : str
             A description of the translation to be returned from str() and repr()
         """
+        print("In GenericTranslation")
+        print(arname)
+        print(shift)
         self.shift = shift
         self.arname = arname
         super().__init__(f, description=description)
 
     def _apply(self, f):
+        print("\n")
+        print("In Generic Translate Applying!")
+        print(self.arname)
+        print(self.shift)
+        print("In Generic Translate Before:")
+        print(f[self.arname])
         f[self.arname] += self.shift
+        print("In Generic Translate After:")
+        print(f[self.arname])
+        print("\n")
 
     def _revert(self, f):
         f[self.arname] -= self.shift

@@ -1,27 +1,53 @@
 import numpy as np
+
+# from pynbody.zooms import orientation
 from .. import units
 from ..array import SimArray
 from ..snapshot import FamilySubSnap
 
+from .orientation import single_rotation
 from .zoom import ZoomSnap
-from .property_cache import cache_prop, multiple_read, get_fam_str
+from .property_cache import cache_prop, multiple_read, get_fam_str, top_hierarchy_family
 
 kms = units.km / units.s
 kms2 = kms * kms
 
 # TODO: Have units check? Or assume always physical units input
 #
+@ZoomSnap.derived_array
+def pos(sim) -> SimArray:
+    '''lazy translation!'''
+    print("In new pos!")
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    orientation_dic = base.orientation
+    x_cen, z_Rot = orientation_dic["x_cen"]*units.kpc, orientation_dic["z_Rot"]
+    u = sim["raw_pos"].units
+    pos = SimArray(single_rotation(z_Rot,sim["raw_pos"] - x_cen))
+    del sim["raw_pos"]
+    pos.sim, pos.units = sim,u
+    print("Orientated!")
+    return pos
+
+
+@ZoomSnap.derived_array
+def vel(sim) -> SimArray:
+    '''lazy translation!'''
+    print("In new vel!")
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
+    orientation_dic = base.orientation
+    v_cen, z_Rot = orientation_dic["v_cen"]*kms, orientation_dic["z_Rot"]
+    vel = SimArray(single_rotation(z_Rot,sim["raw_vel"] - v_cent))
+    u = sim["raw_vel"].units
+    del sim["raw_vel"]
+    vel.sim, vel.units = sim,u
+    print("Orientated!")
+    return vel
+
 ## convenience
 @ZoomSnap.derived_array
+@top_hierarchy_family
 def sub_id(sim) -> SimArray:
     """Convenient function"""
-    if hasattr(sim, "ancestor_family"):
-        print("strange load, ancestory family")
-        anc = sim.ancestor_family
-        fam = get_fam_str(anc)
-        sub_id_anc = SimArray(anc.ancestor.halos(subhalos=True).get_group_array(family=fam))
-        sub_id_anc.sim = anc
-        return sub_id_anc[sim.ancestors_index[anc]]
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
     fam = get_fam_str(sim)
     sub_id = SimArray(base.halos(subhalos=True).get_group_array(family=fam))
@@ -29,6 +55,7 @@ def sub_id(sim) -> SimArray:
     return sub_id
 
 @ZoomSnap.derived_array
+@top_hierarchy_family
 def group_id(sim) -> SimArray:
     """Convenient function"""
     base = sim.ancestor if hasattr(sim, "ancestor") else sim

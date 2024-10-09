@@ -492,10 +492,67 @@ class GadgetHDFSnap(SimSnap):
                     conversion, expectedCgsConversionFactor))
 
         return arr_units
+    def _load_array(self, array_name, fam=None):
+        if not self._family_has_loadable_array(fam, array_name):
+            raise OSError("No such array on disk")
 
-    def _load_array(self, array_name, fam=None,target=None):
-        # print(f"In GadgetHDFSnap Read: {array_name} {fam}")
-        # print(self)
+        translated_names = self._translate_array_name(array_name)
+        print("In HDF load array original")
+        print(array_name)
+        print(translated_names)
+        print(self)
+        print(self._translate_array_name)
+        dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
+        print("units!")
+        print(units)
+
+        if array_name=='mass':
+            dtype = self._mass_dtype
+            # always load mass with this dtype, even if not the one in the file. This
+            # is to cope with cases where it's partly in the header and partly not.
+            # It also forces masses to the same dtype as the positions, which
+            # is important for the KDtree code.
+
+        if fam is None:
+            target = self
+            all_fams_to_load = self.families()
+        else:
+            target = self[fam]
+            all_fams_to_load = [fam]
+
+        target._create_array(array_name, dy, dtype=dtype)
+
+        if units is not None:
+            target[array_name].units = units
+        else:
+            target[array_name].set_default_units()
+
+        for loading_fam in all_fams_to_load:
+            i0 = 0
+            for hdf in self._all_hdf_groups_in_family(loading_fam):
+                npart = hdf['ParticleIDs'].size
+                if npart == 0:
+                    continue
+                i1 = i0+npart
+
+                for translated_name in translated_names:
+                    try:
+                        dataset = self._get_hdf_dataset(hdf, translated_name)
+                    except KeyError:
+                        continue
+                target_array = self[loading_fam][array_name][i0:i1]
+                assert target_array.size == dataset.size
+
+                dataset.read_direct(target_array.reshape(dataset.shape))
+
+                i0 = i1
+
+    def my_load_array(self, array_name, fam=None,target=None):
+        #can we reduce the need to load all at once?
+        print(f"In GadgetHDFSnap Read: {array_name} {fam}")
+        print(self)
+        print("target=")
+        print(target)
         if not self._family_has_loadable_array(fam, array_name):
             print("Not loadable!")
             raise OSError("No such array on disk")
@@ -509,36 +566,47 @@ class GadgetHDFSnap(SimSnap):
             # It also forces masses to the same dtype as the positions, which
             # is important for the KDtree code.
 
-        if fam is None:
-            target = self if target is None else target
-            # all_fams_to_load = self.families()
-        else:
-            target = self[fam] if target is None else target
-            # all_fams_to_load = [fam]
-        all_fams_to_load = target.families()
+        if target is None:
+            target = self if fam is None else self[fam]
+        all_fams_to_load = self.families() if fam is None else[fam]
+        print(f"fam = {fam}")
+        # all_fams_to_load = target.families()
+        print("all_fams_to_load:",all_fams_to_load)
 
-        # print("\n")
-        # print("Gadget creating array!")
-        # print(target)
+        print("\n")
+        print("Gadget creating array!")
+        print(target)
         target._create_array(array_name, dy, dtype=dtype)
-        # print("Created!")
-        # print("\n\n")
+        print("Created!")
+        print("\n\n")
+        print("check access:")
+        full_target_array = target[array_name]
 
-        # print("GEtting for units!")
+        print(full_target_array.units)
+
+        print("Getting for units!")
         if units is not None:
             target[array_name].units = units
         else:
             target[array_name].set_default_units()
 
-        # print("Units set")
-        # print("\n\n")
+        print("Units set")
+        print(full_target_array.units)
+        print("\n")
+        print(target[array_name].units)
+        print("\n\n")
+
 
         for loading_fam in all_fams_to_load:
+            filt = len(target[fam])
+            filt[target[fam].indexes]=True
             i0 = 0
             #Me 
-            set_array = self[loading_fam][array_name]
+            # set_array = self[loading_fam][array_name]
+            set_array = full_target_array[target._get_family_slice(loading_fam)]
+            print("first array")
             for hdf in self._all_hdf_groups_in_family(loading_fam):
-                # print(f"loading index: {i0}")
+                print(f"loading index: {i0}")
                 npart = hdf['ParticleIDs'].size
                 if npart == 0:
                     continue
@@ -553,7 +621,7 @@ class GadgetHDFSnap(SimSnap):
                 target_array = set_array[i0:i1]
                 assert target_array.size == dataset.size
 
-                dataset.read_direct(target_array.reshape(dataset.shape))
+                dataset.read_direct(target_array.reshape(dataset.shape),source_sel=filt[io:i1])
 
                 i0 = i1
             # print("\n \n")
@@ -562,9 +630,9 @@ class GadgetHDFSnap(SimSnap):
             # print(set_array)
             # print(self[loading_fam][array_name])
 
-        # print("\n \n")
-        # print("Gadget array loaded!")
-        # print("\n \n")
+        print("\n \n")
+        print("Gadget array loaded!")
+        print("\n \n")
         # print(set_array)
         # print(self[loading_fam][array_name])
 
