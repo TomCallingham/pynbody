@@ -137,7 +137,8 @@ class ContainerWithPhysicalUnitsOption:
 
         """
 
-        dims = [units.Unit(x) for x in (distance, velocity, mass, 'a', 'h')]
+        #Me Added Gyr
+        dims = [units.Unit(x) for x in (distance, velocity, mass, 'a', 'h',"Gyr")]
 
         self._autoconvert_arrays(dims)
         self._autoconvert_properties(dims)

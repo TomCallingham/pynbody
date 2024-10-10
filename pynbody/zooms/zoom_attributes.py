@@ -163,7 +163,7 @@ def RcircL(sim) -> SimArray:
 @ZoomSnap.derived_array
 @cache_prop
 def circ(sim) -> SimArray:
-    circ = sim["Lz"] / sim["Lcirc_E"]
+    circ = sim["jz"] / sim["Lcirc_E"]
     return circ
 
 
@@ -194,7 +194,7 @@ def Lcirc_E(sim) -> SimArray:
     pot_space = pot.potential(cart_space)
     Ecspace = pot_space + ((vc_space**2) / 2)
     Lcirc_E = SimArray(np.interp(E, Ecspace, Lspace))
-    Lcirc_E.sim, Lcirc_E.units = sim, sim["Lz"].units
+    Lcirc_E.sim, Lcirc_E.units = sim, units.kpc*kms
     return Lcirc_E
 
 
