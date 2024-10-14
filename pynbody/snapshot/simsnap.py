@@ -213,7 +213,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         start = {}
         for fam in family._registry:
             sl = self._get_family_slice(fam)
-            if sl.start != sl.stop:
+            if sl is not None and sl.start != sl.stop:
                 out.append(fam)
                 start[fam] = sl.start
         out.sort(key=start.__getitem__)
@@ -244,13 +244,30 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         elif isinstance(i, slice):
             return subsnap.SubSnap(self, i)
         elif isinstance(i, family.Family):
+            # print("Returning family subsnap!")
+            # print(self)
+            # print(i)
+            if hasattr(self,"_unifamily") and i is self._unifamily:
+                # print("Shortcut")
+                return self
             return subsnap.FamilySubSnap(self, i)
         elif isinstance(i, np.ndarray) and np.issubdtype(np.bool_, i.dtype):
             return self._get_subsnap_from_mask_array(i)
         elif isinstance(i, (list, tuple, np.ndarray, filt.Filter)):
+            # print("\n")
+            # print("returning new Indexed SubSnap! from:")
+            # print("Self:")
+            # print(type(self))
+            # print(self)
+            # print("Base:")
+            # print(self.base)
+            # print("ancestor:")
+            # print(self.ancestor)
+            # print("\n")
             if self.hierarchy is False:
                 return subsnap.IndexedSubSnap(self, i)
             else:
+                # print("Returing Hierarchy!1")
                 return subsnap.HierarchyIndexedSubSnap(self, i)
         elif isinstance(i, int) or isinstance(i, np.int32) or isinstance(i, np.int64):
             # return subsnap.IndexedSubSnap(self, (i,))

@@ -1,6 +1,6 @@
 from ..halo.subfindhdf import ArepoSubfindHDFCatalogue
 from ..snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
-from ..halo import Halo
+from ..halo import Halo, HierarchicalHalo
 from ..snapshot import IndexedSubSnap
 from .. import units
 
@@ -57,8 +57,16 @@ class AurigaSubfindHDFCatalogue(ArepoSubfindHDFCatalogue):
             raise AssertionError("AurigaSubfind neeeds filename provided!")
         return AurigaSubFindHdfMultiFileManager(user_provided_filename)
 
-    def _get_halo(self, halo_number) -> Halo:
+    def _get_halo(self, halo_number) -> Halo|HierarchicalHalo:
         halo_index = self.number_mapper.number_to_index(halo_number)
+        if hasattr(self._base(),"hierarchy") and self._base().hierarchy:
+            return AurigaHierarchicalHalo(
+                halo_number,
+                self._get_properties_one_halo_using_cache_if_available(halo_number, halo_index),
+                self,
+                self.base,
+                self._get_particle_indices_one_halo_using_list_if_available(halo_number, halo_index),
+            )
         return AurigaHalo(
             halo_number,
             self._get_properties_one_halo_using_cache_if_available(halo_number, halo_index),
@@ -71,6 +79,11 @@ class AurigaSubfindHDFCatalogue(ArepoSubfindHDFCatalogue):
 class AurigaHalo(Halo, AurigaStarsWind):
     def __init__(self, halo_number, properties, halo_catalogue, *args, **kwa):
         Halo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
+        AurigaStarsWind.__init__(self)
+
+class AurigaHierarchicalHalo(HierarchicalHalo, AurigaStarsWind):
+    def __init__(self, halo_number, properties, halo_catalogue, *args, **kwa):
+        HierarchicalHalo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
         AurigaStarsWind.__init__(self)
 
 

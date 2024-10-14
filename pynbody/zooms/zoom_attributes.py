@@ -1,19 +1,15 @@
 import numpy as np
-
-# from pynbody.zooms import orientation
 from .. import units
 from ..array import SimArray
-from ..snapshot import FamilySubSnap
 
 from .orientation import single_rotation
 from .zoom import ZoomSnap
-from .property_cache import cache_prop, multiple_read, get_fam_str, top_hierarchy_family
+from .property_cache import cache_prop
+from .zoom_utils import top_hierarchy_family,multiple_read
 
 kms = units.km / units.s
 kms2 = kms * kms
 
-# TODO: Have units check? Or assume always physical units input
-#
 
 @ZoomSnap.derived_array
 def pos(sim) -> SimArray:
@@ -23,16 +19,22 @@ def pos(sim) -> SimArray:
         return sim["raw_pos"]
     orientation_dic = base.orientation
     x_cen, z_Rot = orientation_dic.get("x_cen"), orientation_dic.get("z_Rot")
-    pos = sim["raw_pos"].v
-    if x_cen is not None:
-        pos-=x_cen
-    if z_Rot is not None:
-        pos = single_rotation(z_Rot,pos)
-    pos = SimArray(pos)
+
+    o_pos = sim["raw_pos"].v.copy() #If not copy, can try to orientate twice and change data.
     u = sim["raw_pos"].units
-    # del sim["raw_pos"]
-    pos.sim, pos.units = sim,u
-    return pos
+    if x_cen is not None:
+        o_pos-=x_cen
+    if z_Rot is not None:
+        o_pos = single_rotation(z_Rot,o_pos)
+    o_pos = SimArray(o_pos)
+    o_pos.sim, o_pos.units = sim,u
+    try:
+        del sim["raw_pos"]#, sim["raw_x"], sim["raw_y"], sim["raw_z"],
+    except Exception: #as e:
+        pass
+        # # print("Could not delete raw_pos")
+        # print(e)
+    return o_pos
 
 @ZoomSnap.derived_array
 def vel(sim) -> SimArray:
@@ -42,16 +44,19 @@ def vel(sim) -> SimArray:
         return sim["raw_vel"]
     orientation_dic = base.orientation
     v_cen, z_Rot = orientation_dic.get("v_cen"), orientation_dic.get("z_Rot")
-    vel = sim["raw_vel"].v
-    if v_cen is not None:
-        vel-=v_cen
-    if z_Rot is not None:
-        vel = single_rotation(z_Rot,vel)
-    vel = SimArray(vel)
+    o_vel = sim["raw_vel"].v
     u = sim["raw_vel"].units
-    # del sim["raw_vel"]
-    vel.sim, vel.units = sim,u
-    return vel
+    if v_cen is not None:
+        o_vel-=v_cen
+    if z_Rot is not None:
+        o_vel = single_rotation(z_Rot,o_vel)
+    o_vel = SimArray(o_vel)
+    try:
+        del sim["raw_o_vel"]
+    except Exception:
+        pass
+    o_vel.sim, o_vel.units = sim,u
+    return o_vel
 
 
 ## convenience
@@ -60,7 +65,7 @@ def vel(sim) -> SimArray:
 def sub_id(sim) -> SimArray:
     """Convenient function"""
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
-    fam = get_fam_str(sim)
+    fam = sim._unifamily if hasattr(sim, "_unifamily") else None
     sub_id = SimArray(base.halos(subhalos=True).get_group_array(family=fam))
     sub_id.sim = sim
     return sub_id
@@ -70,10 +75,11 @@ def sub_id(sim) -> SimArray:
 def group_id(sim) -> SimArray:
     """Convenient function"""
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
-    fam = get_fam_str(sim)
-    halo_id = SimArray(base.halos().get_group_array(family=fam))
-    halo_id.sim = sim
-    return halo_id
+    fam = sim._unifamily if hasattr(sim, "_unifamily") else None
+    group_id = SimArray(base.halos(subhalos=False).get_group_array(family=fam))
+    group_id.sim = sim
+    return group_id
+
 
 
 @ZoomSnap.derived_array
@@ -207,7 +213,7 @@ def Lcirc_E(sim) -> SimArray:
 def JR(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=False)
-    return multiple_read(sim, aa_dict, "JR", save=True)
+    return multiple_read(sim, aa_dict, "JR")
 
 
 @ZoomSnap.derived_array
@@ -215,7 +221,7 @@ def JR(sim) -> SimArray:
 def Jz(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=False)
-    return multiple_read(sim, aa_dict, "Jz", save=True)
+    return multiple_read(sim, aa_dict, "Jz")
 
 
 @ZoomSnap.derived_array
@@ -223,7 +229,7 @@ def Jz(sim) -> SimArray:
 def Jphi(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=False)
-    return multiple_read(sim, aa_dict, "Jphi", save=True)
+    return multiple_read(sim, aa_dict, "Jphi")
 
 
 @ZoomSnap.derived_array
@@ -231,7 +237,7 @@ def Jphi(sim) -> SimArray:
 def AR(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=True)
-    return multiple_read(sim, aa_dict, "AR", save=True)
+    return multiple_read(sim, aa_dict, "AR")
 
 
 @ZoomSnap.derived_array
@@ -239,7 +245,7 @@ def AR(sim) -> SimArray:
 def Az(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=True)
-    return multiple_read(sim, aa_dict, "Az", save=True)
+    return multiple_read(sim, aa_dict, "Az")
 
 
 @ZoomSnap.derived_array
@@ -247,7 +253,7 @@ def Az(sim) -> SimArray:
 def Aphi(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=True)
-    return multiple_read(sim, aa_dict, "Aphi", save=True)
+    return multiple_read(sim, aa_dict, "Aphi")
 
 
 @ZoomSnap.derived_array
@@ -255,7 +261,7 @@ def Aphi(sim) -> SimArray:
 def OR(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=True)
-    return multiple_read(sim, aa_dict, "OR", save=True)
+    return multiple_read(sim, aa_dict, "OR")
 
 
 @ZoomSnap.derived_array
@@ -263,7 +269,7 @@ def OR(sim) -> SimArray:
 def Oz(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=True)
-    return multiple_read(sim, aa_dict, "Oz", save=True)
+    return multiple_read(sim, aa_dict, "Oz")
 
 
 @ZoomSnap.derived_array
@@ -271,7 +277,7 @@ def Oz(sim) -> SimArray:
 def Ophi(sim) -> SimArray:
     from .agama_potential import calc_action_angles
     aa_dict = calc_action_angles(sim, angles=True)
-    return multiple_read(sim, aa_dict, "Ophi", save=True)
+    return multiple_read(sim, aa_dict, "Ophi")
 
 
 # Derived from Action Angles

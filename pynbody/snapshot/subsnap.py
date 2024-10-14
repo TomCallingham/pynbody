@@ -4,6 +4,8 @@ import pynbody.util.indexing_tricks
 from pynbody import filt, util
 from pynbody.snapshot import SimSnap
 
+from .. import array, family
+
 
 class ExposedBaseSnapshotMixin:
     # The following will be objects common to a SimSnap and all its SubSnaps
@@ -399,165 +401,157 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
 
 
     def __init__(self, base, index_array=None, iord_array=None, *args, **kwargs):
-        #TODO: Currently only makes sense if taken from a FamilySubsnap
-        # print("401 New Hierarchy SubSnap!")
         super().__init__(base, index_array=index_array, iord_array=iord_array, *args, **kwargs)
         self._inherit()
+
         self._arrays = {}
-        self._family_arrays = {}
+        self._family_arrays = {} #NOTE: Needed, else orientation fails...
+        # self.ancestor_family=None    
+
         self._init_ancestors_arrays()
         self._init_ancestors_index()
-        self._init_family_ancestor()
         self.master_selection=False
+        self._filt_load=True
+
 
     def _init_ancestors_arrays(self):
         #_ancestor_of_arrays  {array_key:ancestors}
+        # TODO: Make lazy, don't need to calculate every link to every one
+        # TODO: Use weakrefs, so intemediates are deletable
         if isinstance(self._subsnap_base,HierarchyIndexedSubSnap):
-            # print("Sub Hierarchy!")
-            self._ancestors_of_arrays = dict(self._subsnap_base._ancestors_of_arrays)\
-                | {key:self._subsnap_base for key in self._subsnap_base._arrays.keys()}
-            # print("Check this is a shallow copy!")
-            #
+            old_dic = dict(self._subsnap_base._ancestors_of_arrays)
+            new_dic = {key:self._subsnap_base for key in self._subsnap_base._arrays.keys()}
+            self._ancestors_of_arrays = new_dic|old_dic
+            #TODO: check this is a shallow copy!
         else:
-            # print("New Hierarchy")
-            #TOOD Add loadable_keys here? or seperate?
             self._ancestors_of_arrays = {key:self._subsnap_base for key in self._subsnap_base.keys()}
         # print(self._ancestors_of_arrays)
 
     def _init_ancestors_index(self):
         #ancestors_index|  {ancestors:slice }
         self.ancestors_index = {self._subsnap_base: self._slice}
+
         if isinstance(self._subsnap_base,HierarchyIndexedSubSnap):
-            for ancestor in set(self._subsnap_base.ancestors_index.keys()):
+            for ancestor in self._subsnap_base.ancestors_index.keys():
                 self.ancestors_index[ancestor]=self._subsnap_base.ancestors_index[ancestor][self._slice]
-    def _init_family_ancestor(self):
-        '''need to know if from a family snap, so can lookup loadable keys specific for fam'''
-        if isinstance(self._subsnap_base,HierarchyIndexedSubSnap):
-            self.ancestor_family = self._subsnap_base.ancestor_family
-        elif isinstance(self._subsnap_base,FamilySubSnap):
-            self.ancestor_family = self._subsnap_base
         else:
-            self.ancestor_family=None    
+            pass
+            #TODO: Fails if IndexedSubSnap that is not Hierarcical. Which should never happen, but...
+
+            #Need to find indexes for main. Do I really have to walk down them all?
+            # print("Constructing link to ancestor!")
+            # _subsnap_chain = []
+            # _subsnap_base = self
+            # print(_subsnap_base)
+            # while hasattr(_subsnap_base,"_subsnap_base"):
+            #     _subsnap_base = _subsnap_base._subsnap_base
+            #     print(_subsnap_base)
+            #     _subsnap_chain.append(_subsnap_base)
+            # print("final base_found")
+            # print(_subsnap_chain)
+            # print(len(_subsnap_chain[-1]))
+            # self.ancestors_index[_subsnap_base] = _subsnap_base
+
 
 
     def _load_array(self, array_name, fam=None, **kwargs):
-        '''for now load into base, then load from base with indexes, then delete from base
-            todo: load straight into current level to avoid large arrays. Custom load and filter neeeded!
+        '''If implemented, load filtered from files. Good for many hdf files.
+            Alternatively, load from ancestor and filter
         '''
-        # print("In Hierarchy load array!")
-        # print("fam = ",fam)
-        
-        self.ancestor._load_array(array_name, fam) #,target=self)
+        if hasattr(self.ancestor,"_load_array_filtered") and self._filt_load is True:
+            self.ancestor._load_array_filtered(array_name,target=self,fam=fam) 
+            return
+        self.ancestor._load_array(array_name, fam) 
+
 
         if fam is None:
-            self._arrays[array_name] = self.ancestor._arrays[array_name][self.ancestors_index[self.base]]
+            self._arrays[array_name] = self.ancestor._arrays[array_name][self.ancestors_index[self.ancestor]]
             del self.ancestor._arrays[array_name]
         else:
-            self._arrays[array_name] = self.ancestor._family_arrays[array_name][fam][self.ancestors_index[self.base]]
+            index = self.ancestors_index[self.ancestor]- self.ancestor._get_family_slice(fam).start
+            self._arrays[array_name] = self.ancestor._family_arrays[array_name][fam][index]
             del self.ancestor._family_arrays[array_name][fam]
             if len(self.ancestor._family_arrays[array_name])==0:
                 del self.ancestor._family_arrays[array_name]
 
 
     def _get_array(self, name, index=None, always_writable=False):
-        # print(f"In my Hierarchy get array! Getting {name}")
+        '''Retreves arrays that are already loaded in above hierarchy'''
         if index is not None:
-            raise ValueError("Why have I got an index?")
+            print("Given an index!")
+        #     raise ValueError("Why have I got an index?")
         if name not in self.keys():
             # If not in keys, check that ancestors havent been updated!
             self._init_ancestors_arrays()
 
         if name in self._arrays.keys():
-            # print("in local keys!")
-            # print(name)
-            return self._arrays[name]
+            x = self._arrays[name]
         elif name in self._ancestors_of_arrays.keys():
-            # print("in ancestor keys!")
             ancestor_snap = self._ancestors_of_arrays[name]
-            # print("current:")
-            # print(self)
-            # print("selected ancestor:")
-            # print(ancestor_snap)
             x = ancestor_snap[name][self.ancestors_index[ancestor_snap]]
-            if self.master_selection:
-                self._arrays=x
+            # if self.master_selection:
+            #     self._arrays[name]=x
+        else:
+            print("About to error!, can't get array?")
+            print(self._arrays.keys())
+            print(self._ancestors_of_arrays.keys())
+            raise KeyError("Can't get array")
+        if index is None:
             return x
-        elif self.ancestor_family is not None and name in self.ancestor_family.all_keys():
-            # print("in ancestor all_keys!")
-            ancestor_snap = self.ancestor_family
-            # print("current:")
-            # print(self)
-            # print("selected ancestor:")
-            # print(ancestor_snap)
-            x = ancestor_snap[name][self.ancestors_index[ancestor_snap]]
-            if self.master_selection:
-                self._arrays=x
-            return x
-        print("About to error!, can't get array?")
-        print(self._arrays.keys())
-        print(self._ancestors_of_arrays.keys())
-
-        raise KeyError("Can't get array")
+        else:
+            return x[index]
 
     def set_master_selection(self):
         '''Make selection the master collection of arrays. Useful for key subsets'''
-        #TODO Be able to select master level
-        self.master_selection=True
+        #TODO: Be able to select master level
+        self.master_selection=self
         print("Should make selections propergate up!")
 
     def keys(self):
-        # print("init ancestors every key check?")
-        # self._init_ancestors_arrays()
         return list(self._arrays.keys()) + list(self._ancestors_of_arrays.keys())
 
 
     def _derive_array(self, array_name, fam=None):
-        # print("In my Hierarchy derive array!")
-        # self._subsnap_base._derive_array(array_name, fam)
         SimSnap._derive_array(self,array_name, fam)
 
     def _create_array(self, *args, **kwargs):
-        # print("In my Hierarchy _create_array!")
-        # self._subsnap_base._create_array(*args, **kwargs)
-        # Loading needs to be fixed for this to work!
         SimSnap._create_array(self,*args, **kwargs)
 
     def _set_array(self, name, value, index=None):
-        # print("In my Hierarchy _set_array!")
         assert len(value) == len(self)
         self._arrays[name] = value
-        # if name in list(self._subsnap_base.keys()):
-        #     self._subsnap_base._set_array(
-        #         name, value, pynbody.util.indexing_tricks.concatenate_indexing(self._slice, index))
-        # else:
-        #     self._subsnap_base._set_family_array(name, self._unifamily, value, index)
-        #
+
     def __delitem__(self, name):
-        if name in self._family_arrays:
-            # mustn't have simulation-level array of this name
-            assert name not in self._arrays
-            del self._family_arrays[name]
+        del self._arrays[name]
+        if name in self._derived_array_names:
+            del self._derived_array_names[self._derived_array_names.index(name)]
 
-            for v in self._family_derived_array_names.values():
-                if name in v:
-                    del v[v.index(name)]
-
-        else:
-            del self._arrays[name]
-            if name in self._derived_array_names:
-                del self._derived_array_names[self._derived_array_names.index(name)]
-
-    ###Unchanged!
     def _get_family_slice(self, fam):
-        # A bit messy: jump out the SubSnap inheritance chain
-        # and call SimSnap method directly...
-        return SimSnap._get_family_slice(self, fam)
+        #TODO: Check This seems very simple compared to other subsnaps.
+        fam_slice = self._family_slice.get(fam,slice(0,0))
+        return fam_slice
 
     def _get_family_array(self, name, fam, index=None, always_writable=False):
-        sl = self._family_indices.get(fam,slice(0,0))
-        sl = pynbody.util.indexing_tricks.concatenate_indexing(sl, index)
-        return self._subsnap_base._get_family_array(name, fam, sl, always_writable)
+        #TODO: update
+        # This should never be called, as Fams of this array array are HierarchyIndexedSubSnap?
+        print("Calling get_family_array from Hierarcical  array, check!")
+        sl = self._get_family_slice(fam)
+        return self._get_array(name)[sl]
 
     def _set_family_array(self, name, family, value, index=None):
-        self._subsnap_base._set_family_array(name, family, value,
-                                             pynbody.util.indexing_tricks.concatenate_indexing(self._family_indices[family], index))
+        #TODO: update
+        print("In Hierarchy set fam array")
+        raise AttributeError("Should not be setting family array from HierarchyIndexedSubSnap")
+
+
+    def __getitem__(self, i) -> array.SimArray | SubSnapBase:
+        if isinstance(i, family.Family):
+            fam=i
+            fam_filt = np.zeros(len(self),dtype=bool)
+            fam_filt[self._family_slice[fam]] = True
+            fam_snap = self[fam_filt]
+            fam_snap._unifamily = fam
+            fam_snap._descriptor = ":" + fam.name
+            return fam_snap
+        return super().__getitem__(i)
+

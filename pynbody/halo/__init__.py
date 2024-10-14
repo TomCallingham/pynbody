@@ -137,6 +137,44 @@ class Halo(snapshot.subsnap.IndexedSubSnap):
             # Convert own properties
             self._autoconvert_properties()
 
+class HierarchicalHalo(snapshot.subsnap.HierarchyIndexedSubSnap):
+    """
+    Represents a single halo from a halo catalogue.
+
+    Note that pynbody refers to groups, halos and subhalos interchangably, with the term "halo" being used to cover
+    all of these.
+    """
+
+    def __init__(self, halo_number, properties, halo_catalogue, *args, **kwa):
+        super().__init__(*args, **kwa)
+        self._halo_catalogue = halo_catalogue
+        self._halo_number = halo_number
+        self._descriptor = "halo_" + str(halo_number)
+        self.properties = copy.copy(self.properties)
+        self.properties["halo_number"] = halo_number
+        self.properties.update(properties)
+
+        # Inherit autoconversion from parent
+        self._autoconvert_properties()
+
+    @property
+    @util.deprecated("The sub property has been renamed to subhalos")
+    def sub(self):
+        """Deprecated alias for :property:`subhalos`."""
+        return self.subhalos
+
+    @property
+    def subhalos(self) -> SubhaloCatalogue:
+        """A HaloCatalogue object containing only the subhalos of this halo."""
+        return self._halo_catalogue._get_subhalo_catalogue(self._halo_number)
+
+    def physical_units(self, distance="kpc", velocity="km s^-1", mass="Msol", persistent=True, convert_parent=True):
+        if convert_parent:
+            self._halo_catalogue.physical_units(distance=distance, velocity=velocity, mass=mass, persistent=persistent)
+        else:
+            # Convert own properties
+            self._autoconvert_properties()
+
 
 class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclasses):
     """Generic halo catalogue object.
@@ -183,7 +221,7 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption, iter_subclas
         self.number_mapper: HaloNumberMapper = number_mapper
         self._index_lists: HaloParticleIndices | None = None
         self._properties: dict | None = None
-        self._cached_halos: dict[int, Halo] = {}
+        self._cached_halos: dict[int, Halo|HierarchicalHalo] = {}
         self._persistent_units = None
 
     def load_all(self):
@@ -269,13 +307,21 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption, iter_subclas
             # NB subclasses may implement loading one halo direct from disk in the above
             # if not, the default implementation will populate _cached_index_lists
 
-    def _get_halo_cached(self, halo_number) -> Halo:
+    def _get_halo_cached(self, halo_number) -> Halo|HierarchicalHalo:
         if halo_number not in self._cached_halos:
             self._cached_halos[halo_number] = self._get_halo(halo_number)
         return self._cached_halos[halo_number]
 
-    def _get_halo(self, halo_number) -> Halo:
+    def _get_halo(self, halo_number) -> Halo|HierarchicalHalo:
         halo_index = self.number_mapper.number_to_index(halo_number)
+        if hasattr(self._base,"hierarchy") and self._base.hierarchy:
+            return HierarchicalHalo(
+                halo_number,
+                self._get_properties_one_halo_using_cache_if_available(halo_number, halo_index),
+                self,
+                self.base,
+                self._get_particle_indices_one_halo_using_list_if_available(halo_number, halo_index),
+            )
         return Halo(
             halo_number,
             self._get_properties_one_halo_using_cache_if_available(halo_number, halo_index),
