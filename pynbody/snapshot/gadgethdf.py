@@ -570,7 +570,6 @@ class GadgetHDFSnap(SimSnap):
         else:
             full_target_array.set_default_units()
 
-
         indexes=target.ancestors_index[target.ancestor]
 
 

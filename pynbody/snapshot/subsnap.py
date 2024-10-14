@@ -429,12 +429,26 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
 
     def _init_ancestors_index(self):
         #ancestors_index|  {ancestors:slice }
-        self.ancestors_index = {self._subsnap_base: self._slice}
-
+        # print("Init Ancestors index!")
         if isinstance(self._subsnap_base,HierarchyIndexedSubSnap):
+            # print("Already a hierarchy")
+            self.ancestors_index = {self._subsnap_base: self._slice}
+            # print("subsnap base:")
+            # print(self._subsnap_base)
             for ancestor in self._subsnap_base.ancestors_index.keys():
+                # print("adding ancestor:")
+                # print(ancestor)
+                # print("Before index:")
+                # print(self.ancestors_index.keys())
                 self.ancestors_index[ancestor]=self._subsnap_base.ancestors_index[ancestor][self._slice]
+                # print("After index:")
+                # print(self.ancestors_index.keys())
+        elif isinstance(self._subsnap_base,FamilySubSnap):
+            #TODO: This is hacky, and ignores what has been loaded into FamilySubSnap!
+            index = self._slice+self.ancestor._get_family_slice(self._subsnap_base._unifamily).start
+            self.ancestors_index = {self._subsnap_base.ancestor: index}
         else:
+            self.ancestors_index = {self._subsnap_base: self._slice}
             pass
             #TODO: Fails if IndexedSubSnap that is not Hierarcical. Which should never happen, but...
 
@@ -451,6 +465,8 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             # print(_subsnap_chain)
             # print(len(_subsnap_chain[-1]))
             # self.ancestors_index[_subsnap_base] = _subsnap_base
+        # print("self ancestors index")
+        # print(self.ancestors_index)
 
 
 
