@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 
 
-def load_orientation(sim_snap,extra:str|None="") -> dict:
+def load_orientation(sim_snap, extra: str | None = "") -> dict:
     folder = sim_snap.analysis_folder
     fname = folder + "pynbody_orientation.hdf5"
     if os.path.isfile(fname):
@@ -13,15 +13,16 @@ def load_orientation(sim_snap,extra:str|None="") -> dict:
             orientation_dic = {p: np.asarray(hf[p][:]) for p in hf.keys()}  # type: ignore
     else:
         print("creating orienation")
+        ancestor_sim_snap = sim_snap
         orientation_dic = calc_apply_pynbody_orientation(sim_snap)
         print("Saving orientaiton")
         save_pynbody_orientation(folder, orientation_dic)
 
-    ortho_tol=1.e-8
+    ortho_tol = 1.0e-8
     matrix = orientation_dic["z_Rot"]
-    #Check Matrix
+    # Check Matrix
     resid = np.dot(matrix, np.asarray(matrix).T) - np.eye(3)
-    resid = (resid ** 2).sum()
+    resid = (resid**2).sum()
     if resid > ortho_tol or resid != resid:
         raise ValueError("Transformation matrix is not orthogonal")
     return orientation_dic
@@ -35,7 +36,7 @@ def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc"
     tx = transformation.inverse_translate(sim_snap, x_cen)
     v_cen = analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
     tx = transformation.inverse_v_translate(tx, v_cen)
-    #Why Gas?
+    # Why Gas?
     # Use gas from inner 5kpc to calculate angular momentum vector
     gas_central = h0.gas[filt.Sphere(disk_size)]
     z_vec = analysis.angmom.ang_mom_vec(gas_central)
@@ -46,13 +47,13 @@ def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc"
     return orientation
 
 
-
 def save_pynbody_orientation(folder, orientation) -> None:
     fname = folder + "pynbody_orientation.hdf5"
     with h5py.File(fname, "w") as hf:
         for p, x in orientation.items():
             hf.create_dataset(p, data=x)
     print("saved")
+
 
 # def apply_pynbody_orientation(sim_snap, orientation) -> None:
 #     """also orientates!"""
@@ -102,10 +103,10 @@ def save_pynbody_orientation(folder, orientation) -> None:
 
 #     return translate_snap
 
+
 def single_rotation(matrix, array):
-    '''Taken from pynbodies own Rotation translation'''
+    """Taken from pynbodies own Rotation translation"""
 
-
-    assert array.shape[1]==3
+    assert array.shape[1] == 3
     array = np.dot(matrix, array.transpose()).transpose()
     return array
