@@ -496,51 +496,131 @@ class GadgetHDFSnap(SimSnap):
     def _load_array(self, array_name, fam=None):
         if not self._family_has_loadable_array(fam, array_name):
             raise OSError("No such array on disk")
+
+        translated_names = self._translate_array_name(array_name)
+        dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
+
+        if array_name=='mass':
+            dtype = self._mass_dtype
+            # always load mass with this dtype, even if not the one in the file. This
+            # is to cope with cases where it's partly in the header and partly not.
+            # It also forces masses to the same dtype as the positions, which
+            # is important for the KDtree code.
+
+        if fam is None:
+            target = self
+            all_fams_to_load = self.families()
         else:
+            target = self[fam]
+            all_fams_to_load = [fam]
 
-            translated_names = self._translate_array_name(array_name)
-            dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
+        target._create_array(array_name, dy, dtype=dtype)
 
-            if array_name=='mass':
-                dtype = self._mass_dtype
-                # always load mass with this dtype, even if not the one in the file. This
-                # is to cope with cases where it's partly in the header and partly not.
-                # It also forces masses to the same dtype as the positions, which
-                # is important for the KDtree code.
+        if units is not None:
+            target[array_name].units = units
+        else:
+            target[array_name].set_default_units()
 
-            if fam is None:
-                target = self
-                all_fams_to_load = self.families()
-            else:
-                target = self[fam]
-                all_fams_to_load = [fam]
+        for loading_fam in all_fams_to_load:
+            #Me - Saves Loading
+            fam_target_array = self[loading_fam][array_name]
+            i0 = 0
+            for hdf in self._all_hdf_groups_in_family(loading_fam):
+                npart = hdf['ParticleIDs'].size
+                if npart == 0:
+                    continue
+                i1 = i0+npart
 
-            target._create_array(array_name, dy, dtype=dtype)
-
-            if units is not None:
-                target[array_name].units = units
-            else:
-                target[array_name].set_default_units()
-
-            for loading_fam in all_fams_to_load:
-                i0 = 0
-                for hdf in self._all_hdf_groups_in_family(loading_fam):
-                    npart = hdf['ParticleIDs'].size
-                    if npart == 0:
+                for translated_name in translated_names:
+                    try:
+                        dataset = self._get_hdf_dataset(hdf, translated_name)
+                    except KeyError:
                         continue
-                    i1 = i0+npart
+                #Me - Saves Loading
+                # target_array = self[loading_fam][array_name][i0:i1]
+                target_array = fam_target_array[i0:i1]
+                assert target_array.size == dataset.size
 
-                    for translated_name in translated_names:
-                        try:
-                            dataset = self._get_hdf_dataset(hdf, translated_name)
-                        except KeyError:
-                            continue
-                    target_array = self[loading_fam][array_name][i0:i1]
-                    assert target_array.size == dataset.size
+                dataset.read_direct(target_array.reshape(dataset.shape))
 
-                    dataset.read_direct(target_array.reshape(dataset.shape))
+                i0 = i1
 
+    def _load_array_filtered(self, array_name, target,fam=None):
+        #can we reduce the need to load all at once?
+        if not self._family_has_loadable_array(fam, array_name):
+            print("Not loadable!")
+            raise OSError("No such array on disk")
+        translated_names = self._translate_array_name(array_name)
+        dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
+
+        if array_name=='mass':
+            dtype = self._mass_dtype
+            # always load mass with this dtype, even if not the one in the file. This
+            # is to cope with cases where it's partly in the header and partly not.
+            # It also forces masses to the same dtype as the positions, which
+            # is important for the KDtree code.
+
+        all_fams_to_load = target.families() if fam is None else[fam]
+        target._create_array(array_name, dy, dtype=dtype)
+
+        full_target_array = target[array_name]
+
+        if units is not None:
+            full_target_array.units = units
+        else:
+            full_target_array.set_default_units()
+
+        indexes=target.ancestors_index[target.ancestor]
+
+
+        for loading_fam in all_fams_to_load:
+            fam_slice = target._get_family_slice(loading_fam)
+            fam_indexes=indexes[fam_slice] - self._family_slice[loading_fam].start
+            #TODO: Update _family_indices to actually match?
+            # alt_fam_indexes =target._family_indices[loading_fam]
+            # print("checking fam_indexes and alt fam indexes the same")
+            # check = (fam_indexes==alt_fam_indexes).all()
+            # print(check.all())
+            # print(check)
+            # print(fam_indexes)
+            # print(alt_fam_indexes)
+            # assert(check)
+            fam_min, fam_max = fam_indexes[0], fam_indexes[-1]
+
+            i0 = 0 #position within base array
+            my_i0= 0 #position with hierarchical array
+            my_i1= 0
+
+            set_array = full_target_array[fam_slice]
+            dataset=np.array([])
+            for hdf in self._all_hdf_groups_in_family(loading_fam):
+                npart = hdf['ParticleIDs'].size
+                if npart == 0:
+                    continue
+                i1 = i0+npart
+                my_i1+= np.searchsorted(fam_indexes[my_i1:],i1)
+
+                if (i1<fam_min):
                     i0 = i1
+                    my_i0 = my_i1
+                    continue
+                if fam_max<i0:
+                    break
+                if my_i0==my_i1:
+                    i0 = i1
+                    continue
+
+                for translated_name in translated_names:
+                    try:
+                        dataset = self._get_hdf_dataset(hdf, translated_name)
+                    except KeyError:
+                        continue
+                data = np.asarray(dataset[:])
+                data_indexes = fam_indexes[my_i0:my_i1]-i0
+                set_array[my_i0:my_i1] = data[data_indexes]
+
+                i0 = i1
+                my_i0 = my_i1
 
     def __get_dtype_dims_and_units(self, fam, translated_names):
         if fam is None:

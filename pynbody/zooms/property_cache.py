@@ -7,6 +7,7 @@ import h5py
 from ..array import SimArray
 from .. import family
 from ..snapshot import FamilySubSnap
+from ..snapshot.subsnap import HierarchyIndexedSubSnap
 
 
 def get_fam_str(sim) -> str:
@@ -14,7 +15,6 @@ def get_fam_str(sim) -> str:
     if len(fams) > 1:
         raise AttributeError("Only one family at a time for this property")
     return str(fams[0])
-
 
 def cache_prop(func) -> Callable:
     @wraps(func)
@@ -86,25 +86,7 @@ def del_cached_props(sim, fam, del_props) -> None:
                 del hf[p]
 
 
-family_dict = {"dm": family.dm, "gas": family.gas, "star": family.star}
 
-
-def multiple_read(sim, data_dict, read_key, save=False) -> SimArray:
-    """adds multiple properties to the sim at once, returning the chosen value"""
-    # TODO: This is currently for one family only
-    if save:
-        save_multiple_cached(sim, data_dict)
-    fam_str = get_fam_str(sim)
-    fam = family_dict[fam_str]
-    base = sim.base if isinstance(sim, FamilySubSnap) else sim
-    props = [p for p in list(data_dict.keys()) if p != read_key]
-
-    for p in props:
-        if p in base._family_arrays:
-            base._family_arrays[p][fam] = data_dict[p]
-        else:
-            base._family_arrays[p] = {fam: data_dict[p]}
-    return data_dict[read_key]
 
 
 def save_multiple_cached(sim, data_dict) -> None:

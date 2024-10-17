@@ -100,7 +100,7 @@ def calc_action_angles(sim, angles=True) -> dict:
     pos, vel = sim["pos"].v, sim["vel"].v
     xyz = np.column_stack((pos, vel))
 
-    base = sim.base if isinstance(sim, snapshot.FamilySubSnap) else sim
+    base = sim.ancestor if hasattr(sim, "ancestor") else sim
     pot = base.potential
     J_finder = agama.ActionFinder(pot, interp=True)
     dyn = {}

@@ -68,11 +68,19 @@ def te(self):
     return self['ke'] + self['phi']
 
 
+# @SimSnap.derived_array
+# def j(self):
+#     """Specific angular momentum"""
+#     angmom = np.cross(self['pos'], self['vel']).view(array.SimArray)
+#     angmom.units = self['pos'].units * self['vel'].units
+#     return angmom
 @SimSnap.derived_array
 def j(self):
     """Specific angular momentum"""
-    angmom = np.cross(self['pos'], self['vel']).view(array.SimArray)
-    angmom.units = self['pos'].units * self['vel'].units
+    # print("In my J, loading pos, vel upfront!")
+    pos,vel = self['pos'], self['vel']
+    angmom = np.cross(pos,vel).view(array.SimArray)
+    angmom.units = pos.units * vel.units
     return angmom
 
 

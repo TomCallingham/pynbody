@@ -185,6 +185,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         self._file_units_system = []
 
+        #ME   Determines if standard index array, or hierarchy arrays
+        self.hierarchy=False
+
     ############################################
     # THE BASICS: SIMPLE INFORMATION
     ############################################
@@ -210,7 +213,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         start = {}
         for fam in family._registry:
             sl = self._get_family_slice(fam)
-            if sl.start != sl.stop:
+            if sl is not None and sl.start != sl.stop:
                 out.append(fam)
                 start[fam] = sl.start
         out.sort(key=start.__getitem__)
@@ -241,13 +244,37 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         elif isinstance(i, slice):
             return subsnap.SubSnap(self, i)
         elif isinstance(i, family.Family):
+            # print("Returning family subsnap!")
+            # print(self)
+            # print(i)
+            if hasattr(self,"_unifamily") and i is self._unifamily:
+                # print("Shortcut")
+                return self
             return subsnap.FamilySubSnap(self, i)
         elif isinstance(i, np.ndarray) and np.issubdtype(np.bool_, i.dtype):
             return self._get_subsnap_from_mask_array(i)
         elif isinstance(i, (list, tuple, np.ndarray, filt.Filter)):
-            return subsnap.IndexedSubSnap(self, i)
+            # print("\n")
+            # print("returning new Indexed SubSnap! from:")
+            # print("Self:")
+            # print(type(self))
+            # print(self)
+            # print("Base:")
+            # print(self.base)
+            # print("ancestor:")
+            # print(self.ancestor)
+            # print("\n")
+            if self.hierarchy is False:
+                return subsnap.IndexedSubSnap(self, i)
+            else:
+                # print("Returing Hierarchy!1")
+                return subsnap.HierarchyIndexedSubSnap(self, i)
         elif isinstance(i, int) or isinstance(i, np.int32) or isinstance(i, np.int64):
-            return subsnap.IndexedSubSnap(self, (i,))
+            # return subsnap.IndexedSubSnap(self, (i,))
+            if self.hierarchy is False:
+                return subsnap.IndexedSubSnap(self, (i,))
+            else:
+                return subsnap.HierarchyIndexedSubSnap(self, (i,))
 
         raise TypeError
 
@@ -292,6 +319,10 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         # Copy in contents if the contents isn't actually pointing to
         # the same data (which will be the case following operations like
         # += etc, since these call __setitem__).
+        # print("name")
+        # print(name)
+        # print("index")
+        # print(index)
         self._set_array(name, ax, index)
 
     def __delitem__(self, name):
@@ -317,19 +348,19 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
     def _get_array_with_lazy_actions(self, name):
         """Get an array by the given name; if it's not available, attempt to load or derive it first"""
-
         # the below is not thread-safe, so we lock
+        nd_name = self._array_name_1D_to_ND(name)
         with self._get_array_lock:
             if name in list(self.keys()):
                 self._dependency_tracker.touching(name)
 
                 # Ensure that any underlying dependencies on 1D positions and velocities
                 # are forwarded to 3D dependencies as well
-                nd_name = self._array_name_1D_to_ND(name)
                 if nd_name is not None:
                     self._dependency_tracker.touching(nd_name)
 
             elif not self.lazy_off:
+                # print("lazy not off")
                 # The array is not currently in memory at the level we need it, and there is a possibility
                 # of getting it into memory using lazy derivation or loading. First, if there is a family level
                 # array by the same name, dispose of it. (Note if this is being called on a FamilySubSnap, the below
@@ -337,33 +368,61 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 self.__resolve_obscuring_family_array(name)
 
                 # Now, we'll try to load the array...
-                if not self.lazy_load_off:
+                #ME
+                loading_name = nd_name or name
+                # print("name, loading name")
+                if not self.lazy_load_off and loading_name in self.loadable_keys():
+                # if not self.lazy_load_off:
                     # Note that we don't want this to be inside _dependency_tracker.calculating(name), because there is a
                     # small possibility the load will be mapped into a derivation by the loader class. Specifically this
                     # happens in ramses snapshots for the mass array (which is derived from the density array for gas cells).
-                    self.__load_if_required(name)
+                    #
+                    # print("Simsnap loading if required")
+                    # self.__load_if_required(name)
+                    self.__load_if_required(loading_name)
+                    # print("\n\n")
+                    # print("loaded!")
 
                 if name in self:
+                    # print("Straight loaded it!")
                     # We managed to load it. Note the dependency.
                     self._dependency_tracker.touching(name)
+
                 elif not self.lazy_derive_off:
                     # Try deriving instead
                     with self._dependency_tracker.calculating(name):
-                        self.__derive_if_required(name)
+                        # print("deriving!")
+                        # print(self)
+                        # self.__derive_if_required(name)
+                        self.__derive_if_required(loading_name)
 
         # At this point we've done everything we can to get the array into memory. If it's still not there, we'll
         # get a KeyError from the below.
         return self._get_array(name)
 
     def __load_if_required(self, name):
+        # print("\n")
+        # print("try to load if required")
+        # print(name)
+        # print(self)
+        # print("\n")
+        #ME
+        fam = self._unifamily if hasattr(self,"_unifamily") else None
+        # print("New fam in load_array!")
+        # print(self.keys())
         if name not in list(self.keys()):
             try:
-                self.__load_array_and_perform_postprocessing(name)
+                self.__load_array_and_perform_postprocessing(name,fam)
             except OSError:
                 pass
 
     def __derive_if_required(self, name):
+        # print("\n")
+        # print("deriving if required")
+        # print(self)
         if name not in list(self.keys()):
+            # print(self)
+            # print(self._derive_array)
             self._derive_array(name)
 
     def __resolve_obscuring_family_array(self, name):
@@ -849,15 +908,24 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         """Calls _load_array for the appropriate subclass, but also attempts to convert
         units of anything that gets loaded and automatically loads the whole ND array
         if this is a subview of an ND array"""
+        # print("__load_array_and_perform_postprocessing")
+        # print("array_name",array_name)
+        # print("fam=",fam)
+        # print(self)
         array_name = self._array_name_1D_to_ND(array_name) or array_name
+
+        # print(array_name)
 
         # keep a record of every array in existence before load (in case it
         # triggers loading more than we expected, e.g. coupled pos/vel fields
         # etc)
         anc = self.ancestor
 
+        #TODO this seems hacky
+        anc = self if hasattr(self,"hierarchy") and self.hierarchy is True and hasattr(self,"_family_arrays") else anc
+        # self_pre_keys = set(self.keys())
+
         pre_keys = set(anc.keys())
-        my_pre_keys = set(self.keys())
 
         # the following function builds a dictionary mapping families to a set of the
         # named arrays defined for them.
@@ -880,13 +948,16 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 except OSError:
                     for fam_x in self.families():
                         self._load_array(array_name, fam_x)
+            # print("Loaded Arrays!")
 
+            # print("new what is loaded!")
             # Find out what was loaded
             new_keys = set(anc.keys()) - pre_keys
             new_fam_keys = fk()
+            # print("new_keys:",new_keys)
+            # print("new_fam_keys:",new_fam_keys)
             for fami in new_fam_keys:
                 new_fam_keys[fami] = new_fam_keys[fami] - pre_fam_keys[fami]
-
             with self.lazy_off:
                 # If the loader hasn't given units already, try to determine the defaults
                 # Then, attempt to convert what was loaded into friendly units
@@ -899,13 +970,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                         if not units.has_units(anc[f][v]):
                             anc[f][v].units = anc._default_units_for(v)
                         anc._autoconvert_array_unit(anc[f][v])
-
-            current_keys = self.keys()
-            my_new_keys = set(current_keys) - my_pre_keys
-
-            if "pos" in my_new_keys or "vel" in my_new_keys and "pos" not in current_keys and "vel" not in current_keys:
-                if hasattr(anc, "lazy_orient"):
-                    anc.lazy_orient(self)
 
     ############################################
     # VECTOR TRANSFORMATIONS OF THE SNAPSHOT
@@ -1032,7 +1096,11 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         else:
             return None
 
-    def _create_array(self, array_name, ndim=1, dtype=None, zeros=True, derived=False, shared=None, source_array=None):
+    def _create_array(self, array_name, ndim=1, dtype=None, zeros=False, derived=False, shared=None, source_array=None):
+        # print("\n")
+        # print("creating array! 1047, SimSnap: ",array_name)
+        # print(self)
+        # print("\n")
         """Create a single snapshot-level array of dimension len(self) x ndim, with
         a given numpy dtype.
 
@@ -1062,8 +1130,13 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         else:
             dims = (self._num_particles, ndim)
 
+        # print("dims=",dims)
+
         if shared is None:
-            shared = self._shared_arrays
+            # shared = self._shared_arrays
+            # print("make shared false if not _shared_arrays! SimSnap.Create Array")
+            # print(self)
+            shared = self._shared_arrays if hasattr(self,"_shared_arrays") else False
 
         if source_array is None:
             source_array = array.array_factory(dims, dtype, zeros, shared)
@@ -1081,6 +1154,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             if array_name not in self._derived_array_names:
                 self._derived_array_names.append(array_name)
 
+
         if ndim == 3:
             array_name_1D = self._array_name_ND_to_1D(array_name)
 
@@ -1088,9 +1162,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 self._arrays[a] = source_array[:, i]
                 self._arrays[a]._name = a
 
+
     def _create_family_array(
         self, array_name, family, ndim=1, dtype=None, derived=False, shared=None, source_array=None
     ):
+        # print("SimSnap 1109, create family array")
+        # print(array_name)
+        # print(self)
+        # print("derived=",derived)
         """Create a single array of dimension len(self.<family.name>) x ndim,
         with a given numpy dtype, belonging to the specified family. For arguments
         other than *family*, see the documentation for :func:`~pynbody.snapshot.SimSnap._create_array`.
@@ -1224,6 +1303,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         Note that this routine never calls any lazy loading/derivation routines, for which one needs to call
         _get_array_with_lazy_actions.
         """
+        # print("In Sim get_array:",name)
 
         x = self._arrays[name]
         if x.derived and not always_writable:
@@ -1504,6 +1584,10 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             return None
 
     def _derive_array(self, name, fam=None):
+        # print("1563 in simsnap _derive_array")
+        # print(name)
+        # print("fam=",fam)
+        # print(self)
         """Calculate and store, for this SnapShot, the derivable array 'name'.
         If *fam* is not None, derive only for the specified family.
 
@@ -1513,16 +1597,40 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         global config
 
         calculated = False
-        fn = self._find_deriving_function(name)
+        # fn = self._find_deriving_function(name)
+        #ME  getting function from top
+        base = self.ancestor if  hasattr(self, "ancestor") else self
+        fn = base._find_deriving_function(name) 
+
         if fn:
+            # print("\n")
+            # print(name)
+            # print("deriving with function!")
             logger.info("Deriving array %s" % name)
             with self.auto_propagate_off:
+                # print(self)
+                # print(fn)
+                # print("In simsnap derive array!")
+                # print(self)
+                # print(fn)
+                # print("fam=",fam)
                 if fam is None:
                     result = fn(self)
+                    # print("\n")
+                    # print("Found result!")
+                    # print(result)
                     ndim = result.shape[-1] if len(result.shape) > 1 else 1
+                    # print(len(self))
+                    # print(result.shape)
+
+                    # print("\n")
+                    # print("creating array to put it in?")
                     self._create_array(name, ndim, dtype=result.dtype, derived=not fn.__stable__)
+                    # print("Created!")
+                    # print("getting array, now it has been created?")
                     write_array = self._get_array(name, always_writable=True)
                 else:
+                    # print(self)
                     result = fn(self[fam])
                     ndim = result.shape[-1] if len(result.shape) > 1 else 1
 
@@ -1540,7 +1648,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                     write_array = self[fam]._get_array(name, always_writable=True)
 
                 self.ancestor._autoconvert_array_unit(result)
-
                 write_array[:] = result
                 if units.has_units(result):
                     write_array.units = result.units

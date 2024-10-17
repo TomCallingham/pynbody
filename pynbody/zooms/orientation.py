@@ -5,23 +5,32 @@ import numpy as np
 import h5py
 
 
-def orientate_snap(self) -> None:
-    folder = self.analysis_folder
+def load_orientation(sim_snap,extra:str|None="") -> dict:
+    folder = sim_snap.analysis_folder
     fname = folder + "pynbody_orientation.hdf5"
     if os.path.isfile(fname):
         with h5py.File(fname, "r") as hf:
-            orientation = {p: hf[p][:] for p in hf.keys()}  # type: ignore
-        apply_pynbody_orientation(self, orientation)
+            orientation_dic = {p: np.asarray(hf[p][:]) for p in hf.keys()}  # type: ignore
     else:
         print("creating orienation")
-        orientation = calc_apply_pynbody_orientation(self)
+        orientation_dic = calc_apply_pynbody_orientation(sim_snap)
         print("Saving orientaiton")
-        save_pynbody_orientation(folder, orientation)
+        save_pynbody_orientation(folder, orientation_dic)
+
+    ortho_tol=1.e-8
+    matrix = orientation_dic["z_Rot"]
+    #Check Matrix
+    resid = np.dot(matrix, np.asarray(matrix).T) - np.eye(3)
+    resid = (resid ** 2).sum()
+    if resid > ortho_tol or resid != resid:
+        raise ValueError("Transformation matrix is not orthogonal")
+    return orientation_dic
 
 
 def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc") -> dict:
     """also orientates!"""
     h0 = sim_snap.halos()[0]
+    print("Assuming main halo on group_id=0!")
     x_cen = analysis.halo.center(h0, retcen=True, cen_size=cen_size)
     tx = transformation.inverse_translate(sim_snap, x_cen)
     v_cen = analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
@@ -32,51 +41,10 @@ def calc_apply_pynbody_orientation(sim_snap, cen_size="1 kpc", disk_size="5 kpc"
     z_vec = analysis.angmom.ang_mom_vec(gas_central)
     z_vec /= np.linalg.norm(z_vec)
     z_Rot = analysis.angmom.calc_faceon_matrix(z_vec)
-    tx = transformation.transform(tx, z_Rot)
+    # tx = transformation.transform(tx, z_Rot)
     orientation = {"x_cen": x_cen, "v_cen": v_cen, "z_Rot": z_Rot}
     return orientation
 
-
-def apply_pynbody_orientation(sim_snap, orientation) -> None:
-    """also orientates!"""
-    # Could make all pynbody orientations lazy
-    x_cen, v_cen, z_Rot = orientation["x_cen"], orientation["v_cen"], orientation["z_Rot"]
-    tx = transformation.inverse_xv_translate(sim_snap, x_shift=x_cen, v_shift=v_cen)
-    tx = transformation.transform(tx, z_Rot)
-
-
-def lazy_orientate_snap(self) -> None:
-    fname = self.analysis_folder + "pynbody_orientation.hdf5"
-    if os.path.isfile(fname):
-        try:
-            with h5py.File(fname, "r") as hf:
-                orientation = {p: hf[p][:] for p in hf.keys()}  # type: ignore
-            self.lazy_orient = lazy_apply_pynbody_orientation(orientation)
-            return
-        except Exception as e:
-            print(e)
-            print("Can't load existing orientation, remaking?")
-
-    try:
-        print("creating and applying orienation")
-        orientation = calc_apply_pynbody_orientation(self)
-        print("Saving orientaiton")
-        save_pynbody_orientation(self.analysis_folder, orientation)
-        self.lazy_orient = orientation
-    except Exception as e:
-        print(e)
-        print(f"Orient failed, {self}")
-
-
-def lazy_apply_pynbody_orientation(orientation) -> Callable:
-    """also orientates!"""
-    x_cen, v_cen, z_Rot = orientation["x_cen"], orientation["v_cen"], orientation["z_Rot"]
-
-    def translate_snap(sim_snap):
-        tx = transformation.inverse_xv_translate(sim_snap, x_shift=x_cen, v_shift=v_cen)
-        tx = transformation.transform(tx, z_Rot)
-
-    return translate_snap
 
 
 def save_pynbody_orientation(folder, orientation) -> None:
@@ -85,3 +53,59 @@ def save_pynbody_orientation(folder, orientation) -> None:
         for p, x in orientation.items():
             hf.create_dataset(p, data=x)
     print("saved")
+
+# def apply_pynbody_orientation(sim_snap, orientation) -> None:
+#     """also orientates!"""
+#     # Could make all pynbody orientations lazy
+#     x_cen, v_cen, z_Rot = orientation["x_cen"], orientation["v_cen"], orientation["z_Rot"]
+#     tx = transformation.inverse_xv_translate(sim_snap, x_shift=x_cen, v_shift=v_cen)
+#     tx = transformation.transform(tx, z_Rot)
+
+
+# def lazy_orientate_snap(self) -> None:
+#     fname = self.analysis_folder + "pynbody_orientation.hdf5"
+#     if os.path.isfile(fname):
+#         try:
+#             with h5py.File(fname, "r") as hf:
+#                 orientation = {p: hf[p][:] for p in hf.keys()}  # type: ignore
+#             self.lazy_orient = lazy_apply_pynbody_orientation(orientation)
+#             return
+#         except Exception as e:
+#             print(e)
+#             print("Can't load existing orientation, remaking?")
+
+#     try:
+#         print("creating and applying orienation")
+#         orientation = calc_apply_pynbody_orientation(self)
+#         print("Saving orientaiton")
+#         save_pynbody_orientation(self.analysis_folder, orientation)
+#         self.lazy_orient = lazy_apply_pynbody_orientation(orientation)
+#     except Exception as e:
+#         print(e)
+#         print(f"Orient failed, {self}")
+
+
+# def lazy_apply_pynbody_orientation(orientation) -> Callable:
+#     """also orientates!"""
+#     x_cen, v_cen, z_Rot = orientation["x_cen"], orientation["v_cen"], orientation["z_Rot"]
+
+#     def translate_snap(sim_snap):
+#         print("\n")
+#         print("Appling translation on:")
+#         print(sim_snap)
+#         print("\n")
+#         print("shifting...")
+#         tx = transformation.inverse_xv_translate(sim_snap, x_shift=x_cen, v_shift=v_cen)
+#         print("Rotating...")
+#         tx = transformation.transform(tx, z_Rot)
+#         print("Done!")
+
+#     return translate_snap
+
+def single_rotation(matrix, array):
+    '''Taken from pynbodies own Rotation translation'''
+
+
+    assert array.shape[1]==3
+    array = np.dot(matrix, array.transpose()).transpose()
+    return array

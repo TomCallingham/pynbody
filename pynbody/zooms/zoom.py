@@ -1,7 +1,7 @@
 # import agama
 from ..snapshot import SimSnap
 
-from .orientation import lazy_orientate_snap
+from .orientation import load_orientation
 from .property_cache import del_cached_props, load_cached_props
 import os
 
@@ -11,12 +11,15 @@ class ZoomSnap:
         self.analysis_folder = analysis_folder
         self._check_analysis_folder(analysis_folder)
         self.use_cache = use_cache if analysis_folder is not None else False
-        if orientate:
-            lazy_orientate_snap(self)
+        self.orientate = orientate
+        self._orientation = None
         self._pot = None
         self._cache = None
         # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
+
+        self.hierarchy=True
+        self._init_lazy_orientation()
 
     @property
     def potential(self): #-> agama.Potential:
@@ -24,6 +27,12 @@ class ZoomSnap:
             from .agama_potential import agama_pynbody_load
             self._pot = agama_pynbody_load(self, symm="axi")
         return self._pot
+
+    @property
+    def orientation(self): #-> agama.Potential:
+        if self._orientation is None:
+            self._orientation = load_orientation(self)
+        return self._orientation
 
     @property
     def cached_props(self) -> dict:
@@ -46,12 +55,24 @@ class ZoomSnap:
     def _check_analysis_folder(self,analysis_folder):
         if analysis_folder is None:
             return
-        if os.path.exists(analysis_folder):
+        if os.path.isdir(analysis_folder):
             return
         print("Creating analysis_folder!")
         os.makedirs(analysis_folder)
-        print("Created:")
-        print(analysis_folder)
+
+    def _init_lazy_orientation(self):
+        '''must be run after others!'''
+        if not self.orientate:
+            return
+        assert(hasattr(self,"_translate_array_name"))
+        self._translate_array_name._pynbody_to_format_map["raw_pos"] = ["Coordinates"]
+        self._translate_array_name._pynbody_to_format_map["raw_vel"] = ["Velocities"]
+        self._translate_array_name._pynbody_to_all_format_map["raw_vel"] = ["Velocities"]
+        self._translate_array_name._pynbody_to_all_format_map["raw_pos"] = ["Coordinates"]
+        translate_pos_vel = {"pos":"raw_pos", "vel":"raw_vel"}
+        self._loadable_keys = [translate_pos_vel.get(key,key) for key in self._loadable_keys]
+        self._loadable_family_keys = {famkey:[translate_pos_vel.get(key,key) for key in _loadable_keys] for famkey,_loadable_keys in self._loadable_family_keys.items()}
+
 
 
 
