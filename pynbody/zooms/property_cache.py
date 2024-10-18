@@ -5,9 +5,8 @@ import os
 from functools import wraps
 import h5py
 from ..array import SimArray
-from .. import family
-from ..snapshot import FamilySubSnap
-from ..snapshot.subsnap import HierarchyIndexedSubSnap
+
+#Depreciated? We Don't use this anymore
 
 
 def get_fam_str(sim) -> str:

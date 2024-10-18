@@ -18,7 +18,7 @@ class ZoomSnap:
         # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
 
-        self.hierarchy=True
+        self.hierarchy=False
         self._init_lazy_orientation()
 
     @property
@@ -29,7 +29,7 @@ class ZoomSnap:
         return self._pot
 
     @property
-    def orientation(self): #-> agama.Potential:
+    def orientation(self) -> dict:
         if self._orientation is None:
             self._orientation = load_orientation(self)
         return self._orientation

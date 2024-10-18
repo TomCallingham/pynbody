@@ -113,7 +113,6 @@ def calc_action_angles(sim, angles=True) -> dict:
         print("Calculating just Actions...")
         Js = J_finder(xyz, angles=False)
     dyn["JR"], dyn["Jz"], dyn["Jphi"] = Js.T
-    # j_units = str(sim["pos"].units * sim["vel"].units)
     j_units = units.kpc * units.km / units.s
     o_units = 1 / units.Gyr
 
