@@ -53,7 +53,7 @@ class Transformable:
         as a context manager to ensure that the translation is undone.
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
-        return GenericTranslation(self, 'pos', offset, description="translate")
+        return GenericTranslation(self, "pos", offset, description="translate")
 
     def offset_velocity(self, offset):
         """Shift the velocity by the given offset.
@@ -62,7 +62,7 @@ class Transformable:
         as a context manager to ensure that the translation is undone.
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
-        return GenericTranslation(self, 'vel', offset, description = "offset_velocity")
+        return GenericTranslation(self, "vel", offset, description="offset_velocity")
 
     def rotate_x(self, angle):
         """Rotates about the current x-axis by 'angle' degrees.
@@ -72,10 +72,12 @@ class Transformable:
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
         angle_rad = angle * np.pi / 180
-        return self.rotate(np.array([[1, 0, 0],
-                                     [0, np.cos(angle_rad), -np.sin(angle_rad)],
-                                     [0, np.sin(angle_rad),  np.cos(angle_rad)]]),
-                           description = f"rotate_x({angle})")
+        return self.rotate(
+            np.array(
+                [[1, 0, 0], [0, np.cos(angle_rad), -np.sin(angle_rad)], [0, np.sin(angle_rad), np.cos(angle_rad)]]
+            ),
+            description=f"rotate_x({angle})",
+        )
 
     def rotate_y(self, angle):
         """Rotates about the current y-axis by 'angle' degrees.
@@ -85,10 +87,12 @@ class Transformable:
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
         angle_rad = angle * np.pi / 180
-        return self.rotate(np.array([[np.cos(angle_rad), 0, np.sin(angle_rad)],
-                                     [0,                1,        0],
-                                     [-np.sin(angle_rad),   0,   np.cos(angle_rad)]]),
-                           description = f"rotate_y({angle})")
+        return self.rotate(
+            np.array(
+                [[np.cos(angle_rad), 0, np.sin(angle_rad)], [0, 1, 0], [-np.sin(angle_rad), 0, np.cos(angle_rad)]]
+            ),
+            description=f"rotate_y({angle})",
+        )
 
     def rotate_z(self, angle):
         """Rotates about the current z-axis by 'angle' degrees.
@@ -98,12 +102,14 @@ class Transformable:
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
         angle_rad = angle * np.pi / 180
-        return self.rotate(np.array([[np.cos(angle_rad), -np.sin(angle_rad), 0],
-                                     [np.sin(angle_rad),  np.cos(angle_rad), 0],
-                                     [0,             0,        1]]),
-                           description = f"rotate_z({angle})")
+        return self.rotate(
+            np.array(
+                [[np.cos(angle_rad), -np.sin(angle_rad), 0], [np.sin(angle_rad), np.cos(angle_rad), 0], [0, 0, 1]]
+            ),
+            description=f"rotate_z({angle})",
+        )
 
-    def rotate(self, matrix, description = None):
+    def rotate(self, matrix, description=None):
         """Rotates using a specified matrix.
 
         Returns a :class:`pynbody.transformation.GenericTranslation` object which can be used
@@ -120,9 +126,11 @@ class Transformable:
         description : str
             A description of the rotation to be returned from str() and repr()
         """
-        return Rotation(self, matrix, description = description)
+        return Rotation(self, matrix, description=description)
 
-    @util.deprecated("This method is deprecated and will be removed in a future version. Use the rotate method instead.")
+    @util.deprecated(
+        "This method is deprecated and will be removed in a future version. Use the rotate method instead."
+    )
     def transform(self, matrix):
         """Deprecated alias for :meth:`rotate`."""
         return self.rotate(matrix)
@@ -139,7 +147,7 @@ class Transformation(Transformable):
     >>>    ...
     """
 
-    def __init__(self, f, defer = False, description = None):
+    def __init__(self, f, defer=False, description=None):
         """Initialise a transformation, and apply it if not explicitly deferred
 
         Parameters
@@ -157,7 +165,7 @@ class Transformation(Transformable):
         from . import snapshot
 
         if isinstance(f, NullTransformation):
-            f = f.sim # as though we are starting from the simulation itself
+            f = f.sim  # as though we are starting from the simulation itself
 
         if isinstance(f, snapshot.SimSnap):
             self.sim = f
@@ -191,7 +199,7 @@ class Transformation(Transformable):
 
     def __str__(self):
         if self.next_transformation is not None:
-            s = str(self.next_transformation)+", "
+            s = str(self.next_transformation) + ", "
         else:
             s = ""
 
@@ -317,6 +325,7 @@ class NullTransformation(Transformation):
 
     def _apply(self, f):
         pass
+
     def _revert(self, f):
         pass
 
@@ -324,7 +333,7 @@ class NullTransformation(Transformation):
 class GenericTranslation(Transformation):
     """A translation on a specified array of a simulation"""
 
-    def __init__(self, f, arname, shift, description = None):
+    def __init__(self, f, arname, shift, description=None):
         """Initialise a translation on a named array
 
         Parameters
@@ -338,24 +347,12 @@ class GenericTranslation(Transformation):
         description : str
             A description of the translation to be returned from str() and repr()
         """
-        print("In GenericTranslation")
-        print(arname)
-        print(shift)
         self.shift = shift
         self.arname = arname
         super().__init__(f, description=description)
 
     def _apply(self, f):
-        print("\n")
-        print("In Generic Translate Applying!")
-        print(self.arname)
-        print(self.shift)
-        print("In Generic Translate Before:")
-        print(f[self.arname])
         f[self.arname] += self.shift
-        print("In Generic Translate After:")
-        print(f[self.arname])
-        print("\n")
 
     def _revert(self, f):
         f[self.arname] -= self.shift
@@ -364,7 +361,7 @@ class GenericTranslation(Transformation):
 class Rotation(Transformation):
     """A rotation on all 3d vectors in a simulation, by a given orthogonal 3x3 matrix"""
 
-    def __init__(self, f, matrix, ortho_tol=1.e-8, description = None):
+    def __init__(self, f, matrix, ortho_tol=1.0e-8, description=None):
         """Initialise a rotation on a simulation.
 
         The matrix must be orthogonal to within *ortho_tol*.
@@ -388,7 +385,7 @@ class Rotation(Transformation):
         """
         # Check that the matrix is orthogonal
         resid = np.dot(matrix, np.asarray(matrix).T) - np.eye(3)
-        resid = (resid ** 2).sum()
+        resid = (resid**2).sum()
         if resid > ortho_tol or resid != resid:
             raise ValueError("Transformation matrix is not orthogonal")
         self.matrix = matrix
@@ -425,48 +422,67 @@ class Rotation(Transformation):
                     ar[:] = np.dot(matrix, ar.transpose()).transpose()
 
 
-GenericRotation = Rotation # name from pynbody v1
+GenericRotation = Rotation  # name from pynbody v1
 
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead.")
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead."
+)
 def translate(f, shift):
     """Deprecated alias for ``f.translate(shift)``"""
 
-    return GenericTranslation(f, 'pos', shift)
+    return GenericTranslation(f, "pos", shift)
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead."
+)
 def inverse_translate(f, shift):
     """Deprecated alias for ``f.translate(-shift)``"""
     return translate(f, -np.asarray(shift))
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead."
+)
 def v_translate(f, shift):
     """Deprecated alias for ``f.offset_velocity(shift)``"""
 
-    return GenericTranslation(f, 'vel', shift)
+    return GenericTranslation(f, "vel", shift)
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead."
+)
 def inverse_v_translate(f, shift):
     """Deprecated alias for ``f.offset_velocity(-shift)``"""
 
-    return GenericTranslation(f, 'vel', -np.asarray(shift))
+    return GenericTranslation(f, "vel", -np.asarray(shift))
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use sim.translate(...).vel_translate(...) instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use sim.translate(...).vel_translate(...) instead."
+)
 def xv_translate(f, x_shift, v_shift):
     """Deprecated alias for ``f.translate(x_shift).offset_velocity(v_shift)``"""
 
     return translate(v_translate(f, v_shift), x_shift)
 
-@util.deprecated("This function is deprecated and will be removed in a future version. "
-                 "Use sim.translate(...).vel_translate(...) instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. "
+    "Use sim.translate(...).vel_translate(...) instead."
+)
 def inverse_xv_translate(f, x_shift, v_shift):
     """Deprecated alias for ``f.translate(-x_shift).offset_velocity(-v_shift)``"""
 
-    return translate(v_translate(f, -np.asarray(v_shift)),
-                     -np.asarray(x_shift))
+    return translate(v_translate(f, -np.asarray(v_shift)), -np.asarray(x_shift))
 
-@util.deprecated("This function is deprecated and will be removed in a future version. "
-                 "Use the rotate method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. "
+    "Use the rotate method of a SimSnap object instead."
+)
 def transform(f, matrix):
     """Deprecated alias for ``f.rotate(matrix)``"""
 
