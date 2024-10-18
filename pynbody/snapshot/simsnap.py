@@ -1067,7 +1067,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             self._create_array(NDname, ndim=3, dtype=dtype, zeros=zeros, derived=derived)
             return
 
-        dims = (self._num_particles,) if ndim is 1 else (self._num_particles, ndim)
+        dims = (self._num_particles,) if ndim == 1 else (self._num_particles, ndim)
 
         shared = self._shared_arrays if shared is None and hasattr(self,"_shared_arrays") else False
 

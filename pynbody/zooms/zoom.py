@@ -64,6 +64,7 @@ class ZoomSnap:
         '''must be run after others!'''
         if not self.orientate:
             return
+        self.orientation
         assert(hasattr(self,"_translate_array_name"))
         self._translate_array_name._pynbody_to_format_map["raw_pos"] = ["Coordinates"]
         self._translate_array_name._pynbody_to_format_map["raw_vel"] = ["Velocities"]
