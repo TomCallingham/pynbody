@@ -42,17 +42,16 @@ class AurigaSubFindHdfMultiFileManager(_GadgetHdfMultiFileManager):
                     to_del.append(i)
         for i in to_del[::-1]:
             del self._filenames[i]
-        self._numfiles -= len(to_del)
+        self._numfiles -= len(to_del) # type: ignore
 
 
 class AurigaSubfindHDFCatalogue(ArepoSubfindHDFCatalogue):
-    # def __init__(self, sim, subs=False, subhalos=False, user_provided_filename=None):
     def __init__(self, sim, filename=None, subs=None, subhalos=False, _inherit_data_from=None):
         super().__init__(sim, filename=filename, subs=subs, subhalos=subhalos, _inherit_data_from=_inherit_data_from)
         self.physical_units()
 
     @classmethod
-    def _get_catalogue_multifile(cls, _, user_provided_filename):
+    def _get_catalogue_multifile(cls, sim, user_provided_filename)->AurigaSubFindHdfMultiFileManager:
         if user_provided_filename is None:
             raise AssertionError("AurigaSubfind neeeds filename provided!")
         return AurigaSubFindHdfMultiFileManager(user_provided_filename)
@@ -152,7 +151,6 @@ auriga_bad_keys = [
     "ofe",
     "I_mag",
     "K_lum_den",
-    # "aform",
     "r_lum_den",
     "HeII",
     "sixh",

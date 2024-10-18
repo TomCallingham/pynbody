@@ -10,6 +10,7 @@ from .zoom_utils import top_hierarchy_family,multiple_read
 kms = units.km / units.s
 kms2 = kms * kms
 
+#TODO: Clean after orientation, or orientate in place?
 
 @ZoomSnap.derived_array
 def pos(sim) -> SimArray:
@@ -85,8 +86,6 @@ def group_id(sim) -> SimArray:
 @ZoomSnap.derived_array
 @cache_prop
 def U(sim) -> SimArray:
-    # print("U!")
-    # base = sim.base if isinstance(sim, FamilySubSnap) else sim
     base = sim.ancestor if  hasattr(sim, "ancestor") else sim
     pot = base.potential
     pos = sim["pos"].view(np.ndarray)

@@ -111,7 +111,7 @@ class SubSnapBase(SimSnap):
                                                          pynbody.util.indexing_tricks.intersect_slices(self._slice, self._subsnap_base._get_family_slice(fam), len(self._subsnap_base)))
         return sl
 
-    def _load_array(self, array_name, fam=None, **kwargs):
+    def _load_array(self, array_name, fam=None):#, **kwargs):
         self._subsnap_base._load_array(array_name, fam)
 
     def write_array(self, array_name, fam=None, **kwargs):
@@ -138,12 +138,12 @@ class SubSnapBase(SimSnap):
     def physical_units(self, *args, **kwargs):
         self._subsnap_base.physical_units(*args, **kwargs)
 
-    def is_derived_array(self, v, fam=None):
+    def is_derived_array(self, array_name, fam=None):
         fam = fam or self._unifamily
-        return self._subsnap_base.is_derived_array(v, fam)
+        return self._subsnap_base.is_derived_array(array_name, fam)
 
-    def unlink_array(self, name):
-        self._subsnap_base.unlink_array(name)
+    def unlink_array(self, array_name):
+        self._subsnap_base.unlink_array(array_name)
 
     def get_index_list(self, relative_to, of_particles=None):
         if of_particles is None:
@@ -235,6 +235,7 @@ class IndexingViewMixin:
             # Check the family index array is monotonically increasing
             # If not, the family slices cannot be implemented
             if not all(np.diff(findex) >= 0):
+                #TODO: This seems expnsive?
                 raise ValueError("Families must retain the same ordering in the SubSnap")
 
         self._slice = index_array
@@ -255,13 +256,13 @@ class IndexingViewMixin:
     def _iord_to_index(self, iord):
         # Maps iord to indices. Note that this requires to perform an argsort (O(N log N) operations)
         # and a binary search (O(M log N) operations) with M = len(iord) and N = len(self._subsnap_base).
-
         if not util.is_sorted(iord) == 1:
             raise Exception("Expected iord to be sorted in increasing order.")
 
         # Find index of particles using a search sort
         iord_base = self._subsnap_base["iord"]
         iord_base_argsort = self._subsnap_base["iord_argsort"]
+        #TODO: Is this just search sorted?
         index_array = util.binary_search(iord, iord_base, sorter=iord_base_argsort)
 
         # Check that the iord match
@@ -355,7 +356,7 @@ class FamilySubSnap(SubSnap):
 
     def _create_array(self, array_name, ndim=1, dtype=None, zeros=False, derived=False, shared=None):
         # Array creation now maps into family-array creation in the parent
-        self._subsnap_base._create_family_array(array_name, self._unifamily, ndim, dtype, derived, shared)
+        self._subsnap_base._create_family_array(array_name, self._unifamily, ndim, dtype, zeros,derived, shared)
 
     def _set_array(self, name, value, index=None):
         if name in list(self._subsnap_base.keys()):
@@ -370,7 +371,7 @@ class FamilySubSnap(SubSnap):
     def _promote_family_array(self, *args, **kwargs):
         pass
 
-    def _load_array(self, array_name, fam=None, **kwargs):
+    def _load_array(self, array_name, fam=None): #, **kwargs):
         if fam is self._unifamily or fam is None:
             self._subsnap_base._load_array(array_name, self._unifamily)
 
@@ -425,24 +426,13 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             #TODO: check this is a shallow copy!
         else:
             self._ancestors_of_arrays = {key:self._subsnap_base for key in self._subsnap_base.keys()}
-        # print(self._ancestors_of_arrays)
 
     def _init_ancestors_index(self):
         #ancestors_index|  {ancestors:slice }
-        # print("Init Ancestors index!")
         if isinstance(self._subsnap_base,HierarchyIndexedSubSnap):
-            # print("Already a hierarchy")
             self.ancestors_index = {self._subsnap_base: self._slice}
-            # print("subsnap base:")
-            # print(self._subsnap_base)
             for ancestor in self._subsnap_base.ancestors_index.keys():
-                # print("adding ancestor:")
-                # print(ancestor)
-                # print("Before index:")
-                # print(self.ancestors_index.keys())
                 self.ancestors_index[ancestor]=self._subsnap_base.ancestors_index[ancestor][self._slice]
-                # print("After index:")
-                # print(self.ancestors_index.keys())
         elif isinstance(self._subsnap_base,FamilySubSnap):
             #TODO: This is hacky, and ignores what has been loaded into FamilySubSnap!
             index = self._slice+self.ancestor._get_family_slice(self._subsnap_base._unifamily).start
@@ -451,6 +441,7 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             self.ancestors_index = {self._subsnap_base: self._slice}
             pass
             #TODO: Fails if IndexedSubSnap that is not Hierarcical. Which should never happen, but...
+            # Sketch of how to continue
 
             #Need to find indexes for main. Do I really have to walk down them all?
             # print("Constructing link to ancestor!")
@@ -479,7 +470,6 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             return
         self.ancestor._load_array(array_name, fam) 
 
-
         if fam is None:
             self._arrays[array_name] = self.ancestor._arrays[array_name][self.ancestors_index[self.ancestor]]
             del self.ancestor._arrays[array_name]
@@ -493,9 +483,6 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
 
     def _get_array(self, name, index=None, always_writable=False):
         '''Retreves arrays that are already loaded in above hierarchy'''
-        if index is not None:
-            print("Given an index!")
-        #     raise ValueError("Why have I got an index?")
         if name not in self.keys():
             # If not in keys, check that ancestors havent been updated!
             self._init_ancestors_arrays()
@@ -543,7 +530,6 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             del self._derived_array_names[self._derived_array_names.index(name)]
 
     def _get_family_slice(self, fam):
-        #TODO: Check This seems very simple compared to other subsnaps.
         fam_slice = self._family_slice.get(fam,slice(0,0))
         return fam_slice
 
@@ -570,4 +556,3 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
             fam_snap._descriptor = ":" + fam.name
             return fam_snap
         return super().__getitem__(i)
-

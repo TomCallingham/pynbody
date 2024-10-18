@@ -26,7 +26,6 @@ def temp(sim) -> SimArray:
 
 
 # Chemistry
-
 met_ind = {"H": 0, "He": 1, "C": 2, "N": 3, "O": 4, "Ne": 5, "Mg": 6, "Si": 7, "Fe": 8}
 metals = ["C", "N", "O", "Ne", "Mg", "Si", "Fe"]
 alpha_metals = ["C", "N", "O", "Ne", "Mg", "Si"]

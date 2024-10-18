@@ -29,18 +29,9 @@ from . import SimSnap, namemapper
 logger = logging.getLogger('pynbody.snapshot.gadgethdf')
 
 import h5py
-# try:
-#     import h5py
-# except ImportError:
-#     h5py = None
 
 _default_type_map = {}
 for x in family.family_names():
-    # try:
-    #     _default_type_map[family.get_family(x)] = \
-    #              [q.strip() for q in config_parser.get('gadgethdf-type-mapping', x).split(",")]
-    # except configparser.NoOptionError:
-    #     pass
     with contextlib.suppress(configparser.NoOptionError):
         _default_type_map[family.get_family(x)] = \
                  [q.strip() for q in config_parser.get('gadgethdf-type-mapping', x).split(",")]
@@ -546,19 +537,11 @@ class GadgetHDFSnap(SimSnap):
                 i0 = i1
 
     def _load_array_filtered(self, array_name, target,fam=None):
-        #can we reduce the need to load all at once?
         if not self._family_has_loadable_array(fam, array_name):
-            print("Not loadable!")
             raise OSError("No such array on disk")
         translated_names = self._translate_array_name(array_name)
         dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
-
-        if array_name=='mass':
-            dtype = self._mass_dtype
-            # always load mass with this dtype, even if not the one in the file. This
-            # is to cope with cases where it's partly in the header and partly not.
-            # It also forces masses to the same dtype as the positions, which
-            # is important for the KDtree code.
+        dtype = self._mass_dtype if array_name=="mass" else dtype
 
         all_fams_to_load = target.families() if fam is None else[fam]
         target._create_array(array_name, dy, dtype=dtype)
@@ -577,14 +560,7 @@ class GadgetHDFSnap(SimSnap):
             fam_slice = target._get_family_slice(loading_fam)
             fam_indexes=indexes[fam_slice] - self._family_slice[loading_fam].start
             #TODO: Update _family_indices to actually match?
-            # alt_fam_indexes =target._family_indices[loading_fam]
-            # print("checking fam_indexes and alt fam indexes the same")
-            # check = (fam_indexes==alt_fam_indexes).all()
-            # print(check.all())
-            # print(check)
-            # print(fam_indexes)
-            # print(alt_fam_indexes)
-            # assert(check)
+            # fam_indexes =target._family_indices[loading_fam]
             fam_min, fam_max = fam_indexes[0], fam_indexes[-1]
 
             i0 = 0 #position within base array
@@ -604,9 +580,9 @@ class GadgetHDFSnap(SimSnap):
                     i0 = i1
                     my_i0 = my_i1
                     continue
-                if fam_max<i0:
+                elif fam_max<i0:
                     break
-                if my_i0==my_i1:
+                elif my_i0==my_i1:
                     i0 = i1
                     continue
 
