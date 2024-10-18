@@ -18,6 +18,7 @@ def pos(sim) -> SimArray:
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
     if not base.orientate:
         return sim["raw_pos"]
+
     orientation_dic = base.orientation
     x_cen, z_Rot = orientation_dic.get("x_cen"), orientation_dic.get("z_Rot")
 
