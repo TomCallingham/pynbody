@@ -71,11 +71,11 @@ import os
 import warnings
 
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
 
 import pynbody
 
-from .. import filt, snapshot, units
-from .interpolate import interpolate2d
+from .. import filt, snapshot, units, util
 
 _ssp_table = None
 _default_ssp_file = [os.path.join(os.path.dirname(__file__), "default_ssp.txt"),
@@ -159,7 +159,9 @@ class SSPTable:
         metallicities = self._clamp_value(metallicities, self._metallicities)
         ages = self._clamp_value(ages, self._ages)
 
-        return interpolate2d(metallicities, ages, self._metallicities, self._ages, self._magnitudes[band])
+        interpolator = RegularGridInterpolator((self._ages, self._metallicities), self._magnitudes[band].T,
+                                               method='linear', bounds_error=True)
+        return interpolator(np.array([ages, metallicities]).T)
 
     def __call__(self, snapshot, band):
         """Interpolate the magnitude for a given snapshot and bandpass
@@ -389,20 +391,10 @@ def get_current_ssp_table() -> SSPTable:
         _ssp_table = _load_ssp_table(_default_ssp_file)
     return _ssp_table
 
-class SSPTableContext:
+class SSPTableContext(util.SettingControl):
     """Context manager for temporarily using a custom SSP table"""
     def __init__(self, ssp_table):
-        global _ssp_table
-        self._new_table = ssp_table
-        self._old_table = _ssp_table
-        _ssp_table = self._new_table
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, *args):
-        global _ssp_table
-        _ssp_table = self._old_table
+        super().__init__(globals(), "_ssp_table", ssp_table)
 
 def use_custom_ssp_table(path_or_table : SSPTable):
     """Specify a custom SSP table for calculating magnitudes.
