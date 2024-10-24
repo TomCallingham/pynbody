@@ -1,67 +1,114 @@
-from os.path import isfile
-
-import h5py
 import numpy as np
+import pytest
 
 import pynbody
+from pynbody.test_utils.gadget4_subfind_reader import Halos
+
+# tell pytest not to raise warnings across this module
+pytestmark = pytest.mark.filterwarnings("ignore:Masses are either stored")
 
 
-def setup_module():
-    global snap, halos, subhalos, htest, snap_arepo, halos_arepo, subhalos_arepo, htest_arepo
-    snap = pynbody.load('testdata/testL10N64/snapshot_000.hdf5')
-    halos = pynbody.halo.Gadget4SubfindHDFCatalogue(snap)
-    subhalos = pynbody.halo.Gadget4SubfindHDFCatalogue(snap, subs=True)
-    htest = Halos('testdata/testL10N64/', 0)
-    snap_arepo = pynbody.load('testdata/arepo/cosmobox_015.hdf5')
-    halos_arepo = pynbody.halo.ArepoSubfindHDFCatalogue(snap_arepo)
-    subhalos_arepo = pynbody.halo.ArepoSubfindHDFCatalogue(snap_arepo, subs=True)
-    htest_arepo = Halos('testdata/arepo/', 15)
+@pytest.fixture(scope='module', autouse=True)
+def get_data():
+    pynbody.test_utils.ensure_test_data_available("gadget", "arepo", "hbt", "tng_subfind")
 
 
-def teardown_module():
-    global snap, halos, subhalos, htest, snap_arepo, halos_arepo, subhalos_arepo, htest_arepo
-    del snap, halos, subhalos, htest, snap_arepo, halos_arepo, subhalos_arepo, htest_arepo
+@pytest.fixture
+def snap():
+    with pytest.warns(UserWarning, match="Masses are either stored in the header or have another dataset .*"):
+        return pynbody.load('testdata/gadget4_subfind/snapshot_000.hdf5')
+
+@pytest.fixture
+def halos(snap):
+    return pynbody.halo.subfindhdf.Gadget4SubfindHDFCatalogue(snap)
+
+@pytest.fixture
+def subhalos(snap):
+    return pynbody.halo.subfindhdf.Gadget4SubfindHDFCatalogue(snap, subhalos=True)
+
+@pytest.fixture
+def htest():
+    return Halos('testdata/gadget4_subfind/', 0)
+
+@pytest.fixture
+def snap_arepo():
+    with pytest.warns(UserWarning, match="Masses are either stored in the header or have another dataset .*"):
+        return pynbody.load('testdata/arepo/cosmobox_015.hdf5')
+
+@pytest.fixture
+def halos_arepo(snap_arepo):
+    return pynbody.halo.subfindhdf.ArepoSubfindHDFCatalogue(snap_arepo)
+
+@pytest.fixture
+def subhalos_arepo(snap_arepo):
+    return pynbody.halo.subfindhdf.ArepoSubfindHDFCatalogue(snap_arepo, subhalos=True)
+
+@pytest.fixture
+def htest_arepo():
+    return Halos('testdata/arepo/', 15)
 
 
-def test_catalogue():
-    _h_nogrp = snap.halos(grp_array=True)
-    _subh_nogrp = snap.halos(subs=True, grp_array=True)
-    _harepo_nogrp = snap_arepo.halos(grp_array=True)
-    _subharepo_nogrp = snap_arepo.halos(subs=True, grp_array=True)
+def test_catalogue(snap, snap_arepo, halos, subhalos, halos_arepo, subhalos_arepo):
+    _h_nogrp = snap.halos()
+    _subh_nogrp = snap.halos(subhalos=True)
+    _harepo_nogrp = snap_arepo.halos()
+    _subharepo_nogrp = snap_arepo.halos(subhalos=True)
     for h in [halos, subhalos, _h_nogrp, _subh_nogrp, halos_arepo, subhalos_arepo, _harepo_nogrp, _subharepo_nogrp]:
         assert(isinstance(h, pynbody.halo.subfindhdf.Gadget4SubfindHDFCatalogue)), \
             "Should be a Gadget4SubfindHDFCatalogue catalogue but instead it is a " + str(type(h))
 
-def test_lengths():
+def test_lengths(halos, subhalos, halos_arepo, subhalos_arepo):
     assert len(halos)==299
     assert len(subhalos)==343
     assert len(halos_arepo)==447
     assert len(subhalos_arepo)==475
 
+def test_catalogue_from_filename_gadget4():
+    snap = pynbody.load('testdata/gadget4_subfind/snapshot_000.hdf5')
+    snap._filename = ""
 
-def _test_halo_or_subhalo_properties(comparison_catalogue, pynbody_catalogue):
+    halos = snap.halos(filename='testdata/gadget4_subfind/fof_subhalo_tab_000.hdf5')
+    assert isinstance(halos, pynbody.halo.subfindhdf.Gadget4SubfindHDFCatalogue)
+
+def test_catalogue_from_filename_arepo():
+    snap = pynbody.load('testdata/arepo/cosmobox_015.hdf5')
+    snap._filename = ""
+
+    halos = snap.halos(filename='testdata/arepo/fof_subhalo_tab_015.hdf5')
+    assert isinstance(halos, pynbody.halo.subfindhdf.ArepoSubfindHDFCatalogue)
+
+@pytest.mark.parametrize('mode', ('gadget4', 'arepo'))
+@pytest.mark.parametrize('subhalo_mode', (True, False))
+def test_halo_or_subhalo_properties(mode, subhalo_mode, halos, snap, htest, halos_arepo, snap_arepo, htest_arepo):
+
+    halos_str = 'subhalos' if subhalo_mode else 'halos'
+    if mode == 'gadget4':
+        comparison_catalogue, pynbody_catalogue = htest.load()[halos_str], snap.halos(subhalos=subhalos)
+    elif mode=='arepo':
+        comparison_catalogue, pynbody_catalogue = htest_arepo.load()[halos_str], snap_arepo.halos(subhalos=subhalos)
+    else:
+        raise ValueError("Invalid mode")
 
     np.random.seed(1)
     hids = np.random.choice(range(len(pynbody_catalogue)), 20)
 
     for hid in hids:
         for key in list(comparison_catalogue.keys()):
-            props = pynbody_catalogue.get_halo_properties(hid, with_unit=False)
+            props = pynbody_catalogue.get_dummy_halo(hid).properties
             if key in list(props.keys()):
-                np.testing.assert_allclose(props[key], comparison_catalogue[key][hid])
+                value = props[key]
+                if pynbody.units.is_unit(value):
+                    orig_units = pynbody_catalogue.base.infer_original_units(value)
+                    value = value.in_units(orig_units)
+                np.testing.assert_allclose(value, comparison_catalogue[key][hid])
 
-def test_halo_properties():
-    for htest_file, halocatalogue in [(htest, halos), (htest_arepo, halos_arepo)]:
-        _test_halo_or_subhalo_properties(htest_file.load()['halos'], halocatalogue)
+    pynbody_all = pynbody_catalogue.get_properties_all_halos()
+    for key in list(comparison_catalogue.keys()):
+        if key in pynbody_all.keys():
+            np.testing.assert_allclose(pynbody_all[key], comparison_catalogue[key])
 
-
-def test_subhalo_properties():
-    for htest_file, halocatalogue in [(htest, subhalos), (htest_arepo, subhalos_arepo)]:
-        _test_halo_or_subhalo_properties(htest_file.load()['subhalos'], halocatalogue)
-
-
-
-def test_halo_loading() :
+@pytest.mark.filterwarnings("ignore:Unable to infer units from HDF attributes")
+def test_halo_loading(halos, htest, halos_arepo, htest_arepo) :
     """ Check that halo loading works """
     # check that data loading for individual fof groups works
     _ = halos[0]['pos']
@@ -76,259 +123,86 @@ def test_halo_loading() :
     arepo_halos = htest_arepo.load()['halos']
     assert(len(halos_arepo[0]['iord']) == len(halos_arepo[0]) == np.sum(arepo_halos['GroupLenType'][0, :], axis=-1))
 
+def test_subhalos(halos):
+    assert len(halos[1].subhalos) == 8
+    assert len(halos[1].subhalos[2]) == 91
+    assert halos[1].subhalos[2].properties['halo_number'] == 22
 
-def test_particle_data():
+@pytest.mark.filterwarnings("ignore:Unable to infer units from HDF attributes", "ignore:Accessing multiple halos")
+def test_particle_data(halos, htest):
     hids = np.random.choice(range(len(halos)), 5)
     for hid in hids:
         assert(np.allclose(halos[hid].dm['iord'], htest[hid]['iord']))
 
+@pytest.mark.filterwarnings("ignore:Masses are either stored")
+def test_progenitors_and_descendants():
+    # although this uses the HBT snapshot, we actually test for the subfind properties...
+    f = pynbody.load("testdata/gadget4_subfind_HBT/snapshot_034.hdf5")
+    h = f.halos()
+    assert isinstance(h, pynbody.halo.subfindhdf.Gadget4SubfindHDFCatalogue)
+    p = h[0].subhalos[0].properties
+    match = {'FirstProgSubhaloNr': 0, 'NextDescSubhaloNr': 127, 'ProgSubhaloNr': 0,
+             'SubhaloNr': 0, 'DescSubhaloNr': 0, 'FirstDescSubhaloNr': 0, 'NextProgSubhaloNr': 74}
+    for k, v in match.items():
+        assert p[k] == v
 
-class Halos:
-    """
-    This class extracts halo/subhalo information directly from the group catalog HDF5 file. It is used here to
-    test that the group catalogue properties match those obtained via the pynbody interface.
+    p = h[3].subhalos[1].properties
 
-    It can load all halo/subhalo information from the entire group catalog for one snapshot or
-    return group catalog information for one halo/subhalo.
+    match = {'FirstProgSubhaloNr': 167, 'NextDescSubhaloNr': -1, 'ProgSubhaloNr': 167, 'SubhaloNr': 205,
+             'DescSubhaloNr': 221, 'FirstDescSubhaloNr': 221, 'NextProgSubhaloNr': -1}
+    for k, v in match.items():
+        assert p[k] == v
 
-    """
-    def __init__(self, basePath, snapNum):
-        self.basePath = basePath
-        self.snapNum = snapNum
 
-        self.gcfile = self.gcPath(basePath, snapNum)
-        self.snapfile = self.snapPath(basePath, snapNum)
+@pytest.mark.filterwarnings("ignore:Masses are either stored")
+@pytest.mark.filterwarnings("ignore:Incorrect number of ") # test data has only some of the files
+def test_multifile_multipart_tng_halos():
+    # This addresses a number of linked bugs in reading subfind data where there are multiple files, and
+    # more than one particle type mapping into the same family. See #839
+    f = pynbody.load("testdata/arepo/tng/snapdir_261/snap_261")
+    h = f.halos()
+    assert (h[0]['iord'][::100000] == [1079368176, 1073346509, 1079169082, 1076024094, 1078414281,
+          1079318645, 1060773038, 1079036573, 1076276269, 1045575677,
+          1056566404, 1063954410, 1078469798,   23152184,   20085564,
+            24029526,   23927910,   20018798,   24197828,   21084457,
+            23217921,   22226505,   18947605,   25089761,   21155098,
+            18961540,   24820839,   21071365,   25913167,   18242487,
+            22815450,   20701085,   22021963,   18445394,   22331098,
+            18828642,   25965289,   19799793,   24274707,   20909980,
+            23210270,   23462569,   19879522,   20108215,   24434760,
+            17475958,   20648454,   18793266,   22666648,   20739052,
+            23397149,   22953590,   17407270,   16811069,   20600621,
+            23023164,   17306789,   21346551,   23646591,   20535924,
+          1038202167, 1038385095, 1041854620, 1041212679, 1033619448,
+          1038549232, 1033659336, 1043699534, 1031042903, 1029945620,
+          1051418078, 1055911654, 1055831064, 1065659516, 1049027467,
+          1061288281, 1056286673, 1067075166, 1028317439, 1077239322]).all()
 
-        self.properties = self.load()
+    # here are two low-res particles that are actually PartType2 but lumped into the DM family by pynbody
+    # these were previously assigned to wrong particles (PartType2 mapped into PartType1 particles by mistake)
+    assert (h[0].dm['iord'][-2:] == [5801691, 5801450]).all()
 
-    def __getitem__(self, haloID):
-        r = {}
-        fields = ['GroupPos', 'Group_R_Mean200']
-        keynames = ['cen', 'r200']
-        for i in range(len(fields)):
-            r[keynames[i]] = self.properties['halos'][fields[i]][haloID]
+    assert (h[0].subhalos[2]['iord'][::1000] == [1076590348, 1079252330, 1079343916, 1079237207, 1075658142,
+          1075226456, 1074535510,   21365624,   21358512,   21406282,
+            22432720,   21411320,   20340518,   20288656,   22321526,
+            22377688,   21399799,   21349549,   22323202,   24413954,
+            22256512,   21218148,   21360613,   21400353,   22373060,
+            20343482,   22322281,   23345354,   22322474,   23341431,
+            19413719,   22380145,   20346069,   22259777,   20346110,
+          1061149399, 1076605146, 1048386188, 1019409154, 1019367044,
+          1034899938]).all()
 
-        r['iord'] = self.loadHalo(haloID, "dm", fields=['ParticleIDs'])['ParticleIDs']
-        return r
+    assert (h[0].dm['iord'][-2:] == [5801691, 5801450]).all()
 
-    def gcPath(self, basePath, snapNum):
-        """ Return absolute path to a group catalog HDF5 file. """
-        filePath1 = basePath + 'groups_%03d.hdf5' % snapNum
-        filePath2 = basePath + 'fof_subhalo_tab_%03d.hdf5' % snapNum
 
-        if isfile(filePath1):
-            return filePath1
-        return filePath2
+    assert ((h[1]['iord'][::100000]) == [1078937127, 1076029549, 1078029745,   19522035,   18616445,
+            21423889,   22453094]).all()
 
-    def snapPath(self, basePath, snapNum):
-        """ Return absolute path to a snapshot HDF5 file. """
-        filePath1 = basePath + 'snapshot_' + str(snapNum).zfill(3) + '.hdf5'
-        return filePath1
+    assert ((h[1].subhalos[3]['iord'][::100] == [26360186, 26359643, 26360908, 26356085, 25978477, 26396901,
+          26356628, 26022586, 26360378, 25977706, 26360175, 26355601,
+          26356851, 26356882, 26396677, 25978240]).all())
 
-    def loadSubhalos(self, fields=None):
-        """ Load all subhalo information from the entire group catalog for one snapshot
-           (optionally restrict to a subset given by fields). """
-        try:
-            return self.loadObjects("Subhalo", "subhalos", fields)
-        except:
-            return self.loadObjects("Subhalo", "subgroups", fields)
+    assert (h[3].s['iord'][:5] == [1062632156, 1057152317, 1049782182, 1038218046, 1039576336]).all()
+    # another test that PartType2 lumped into DM particles get picked up OK
 
-    def loadHalos(self, fields=None):
-        """ Load all halo information from the entire group catalog for one snapshot
-           (optionally restrict to a subset given by fields). """
-
-        return self.loadObjects("Group", "groups", fields)
-
-    def loadHeader(self):
-        """ Load the group catalog header. """
-        with h5py.File(self.gcfile, 'r') as f:
-            header = dict(f['Header'].attrs.items())
-
-        return header
-
-    def loadParams(self):
-        """ Load the group catalog header. """
-        with h5py.File(self.gcfile, 'r') as f:
-            params = dict(f['Parameters'].attrs.items())
-
-        return params
-
-    def load(self, fields=None):
-        """ Load complete group catalog all at once. """
-        r = {}
-        r['subhalos'] = self.loadSubhalos(fields)
-        r['halos'] = self.loadHalos(fields)
-        r['header'] = self.loadHeader()
-        return r
-
-    def loadObjects(self, gName, nName, fields):
-        """ Load either halo or subhalo information from the group catalog. """
-        result = {}
-
-        # make sure fields is not a single element
-        if isinstance(fields, str):
-            fields = [fields]
-
-        # load header from first chunk
-        with h5py.File(self.gcfile, 'r') as f:
-
-            header = dict(f['Header'].attrs.items())
-            result['count'] = f['Header'].attrs['N' + nName + '_Total']
-
-            if not result['count']:
-                print('warning: zero groups, empty return (snap=' + str(self.snapNum) + ').')
-                return result
-
-            # if fields not specified, load everything
-            if not fields:
-                fields = list(f[gName].keys())
-
-            for field in fields:
-                # verify existence
-                if field not in f[gName].keys():
-                    raise Exception("Group catalog does not have requested field [" + field + "]!")
-
-                # replace local length with global
-                shape = list(f[gName][field].shape)
-                shape[0] = result['count']
-
-                # allocate within return dict
-                result[field] = np.zeros(shape, dtype=f[gName][field].dtype)
-
-        # loop over chunks
-        wOffset = 0
-
-        with h5py.File(self.gcfile, 'r') as f:
-
-            # loop over each requested field
-            for field in fields:
-                if field not in f[gName].keys():
-                    raise Exception("Group catalog does not have requested field [" + field + "]!")
-
-                # shape and type
-                shape = f[gName][field].shape
-
-                # read data local to the current file
-                if len(shape) == 1:
-                    result[field][wOffset:wOffset + shape[0]] = f[gName][field][0:shape[0]]
-                else:
-                    result[field][wOffset:wOffset + shape[0], :] = f[gName][field][0:shape[0], :]
-
-            wOffset += shape[0]
-
-        # only a single field? then return the array instead of a single item dict
-        if len(fields) == 1:
-            return result[fields[0]]
-
-        return result
-
-    def loadSingle(self, haloID=-1, subhaloID=-1):
-        """ Return complete group catalog information for one halo or subhalo. """
-        if (haloID < 0 and subhaloID < 0) or (haloID >= 0 and subhaloID >= 0):
-            raise Exception("Must specify either haloID or subhaloID (and not both).")
-
-        gName = "Subhalo" if subhaloID >= 0 else "Group"
-        searchID = subhaloID if subhaloID >= 0 else haloID
-
-        # load halo/subhalo fields into a dict
-        result = {}
-
-        with h5py.File(self.gcfile, 'r') as f:
-            for haloProp in f[gName].keys():
-                result[haloProp] = f[gName][haloProp][searchID]
-
-        return result
-
-    def getSnapOffsets(self, searchID, type):
-        """ Compute offsets within snapshot for a particular group/subgroup. """
-
-        r = {}
-        # load the length (by type) of this group/subgroup from the group catalog
-        with h5py.File(self.gcfile, 'r') as f:
-            r['lenType'] = f[type][type + 'LenType'][searchID, :]
-            r['offsetType'] = f[type][type + 'OffsetType'][searchID, :]
-            r['indices'] = (r['offsetType'], r['offsetType'] + r['lenType'])
-
-        return r
-
-    def getNumPart(self, file):
-        """ Calculate number of particles of all types given a snapshot header. """
-        nTypes = int(file['Config'].attrs['NTYPES'])
-
-        nPart = np.zeros(nTypes, dtype=np.int64)
-        for j in range(nTypes):
-            nPart[j] = file['Header'].attrs['NumPart_Total'][j]
-
-        return nPart
-
-    def loadSubset(self, partType="dm", fields=None, subset=None, float32=False):
-        """ Load a subset of fields for all particles/cells of a given partType.
-            If offset and length specified, load only that subset of the partType.
-            If mdi is specified, must be a list of integers of the same length as fields,
-            giving for each field the multi-dimensional index (on the second dimension) to load.
-              For example, fields=['Coordinates', 'Masses'] and mdi=[1, None] returns a 1D array
-              of y-Coordinates only, together with Masses.
-            If sq is True, return a numpy array instead of a dict if len(fields)==1.
-            If float32 is True, load any float64 datatype arrays directly as float32 (save memory). """
-        result = {}
-
-        ptNum = self.partTypeNum(partType)
-        gName = "PartType" + str(ptNum)
-
-        lengroup = subset['lenType'][ptNum]
-        idx0, idx1 = subset['indices'][0][ptNum], subset['indices'][1][ptNum]
-        result['count'] = lengroup
-
-        with h5py.File(self.snapfile, 'r') as f:
-            # if fields not specified, load everything
-            if not fields:
-                fields = list(f[gName].keys())
-
-            for i, field in enumerate(fields):
-                # verify existence
-                if field not in f[gName].keys():
-                    raise Exception("Particle type [" + str(ptNum) + "] does not have field [" + field + "]")
-
-                # replace local length with global
-                shape = list(f[gName][field].shape)
-                shape[0] = lengroup
-
-                # allocate within return dict
-                dtype = f[gName][field].dtype
-                if dtype == np.float64 and float32: dtype = np.float32
-                result[field] = np.zeros(shape, dtype=dtype)
-                result[field] = f[gName][field][idx0:idx1]
-
-        return result
-
-    def loadSubhalo(self, haloid, partType, fields=None):
-        """ Load all particles/cells of one type for a specific subhalo
-            (optionally restricted to a subset fields). """
-        subset = self.getSnapOffsets(haloid, "Subhalo")
-        return self.loadSubset(partType, fields, subset=subset)
-
-    def loadHalo(self, haloid, partType, fields=None):
-        """ Load all particles/cells of one type for a specific halo
-            (optionally restricted to a subset fields). """
-        subset = self.getSnapOffsets(haloid, "Group")
-        return self.loadSubset(partType, fields, subset=subset)
-
-    def partTypeNum(self, partType):
-        """ Mapping between common names and numeric particle types. """
-        if str(partType).isdigit():
-            return int(partType)
-
-        if str(partType).lower() in ['gas', 'cells']:
-            return 0
-        if str(partType).lower() in ['dm', 'darkmatter']:
-            return 1
-        if str(partType).lower() in ['tracer', 'tracers', 'tracermc', 'trmc']:
-            return 3
-        if str(partType).lower() in ['star', 'stars', 'stellar']:
-            return 4  # only those with GFM_StellarFormationTime>0
-        if str(partType).lower() in ['wind']:
-            return 4  # only those with GFM_StellarFormationTime<0
-        if str(partType).lower() in ['bh', 'bhs', 'blackhole', 'blackholes']:
-            return 5
-
-        raise Exception("Unknown particle type name.")
+    assert (h[1].subhalos[0].dm['iord'][-5:] == [5477082,  5477081,  5476835,  5346238,  5346239]).all()

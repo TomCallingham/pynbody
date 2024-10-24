@@ -2,8 +2,10 @@ import time
 
 import numpy as np
 import numpy.testing as npt
+import pytest
 
 import pynbody
+import pynbody.util.indexing_tricks
 
 
 def random_slice(max_pos=1000, max_step=10):
@@ -12,10 +14,25 @@ def random_slice(max_pos=1000, max_step=10):
     b = random.randint(0, max_pos)
     return slice(min(a, b), max(a, b), random.randint(1, max_step))
 
+def test_thread_map():
+    result = pynbody.util.thread_map(lambda x: 2*x, range(5))
+    assert (np.array(result) == [0, 2, 4, 6, 8]).all()
+
+def test_thread_map_exception():
+    def testfn(x):
+        if x==0:
+            raise RuntimeError("Test exception")
+        return 2*x
+
+    with pytest.raises(RuntimeError) as exc:
+        pynbody.util.thread_map(testfn, range(5))
+
+    assert exc.value.args[0] == "Test exception"
+    assert exc.traceback[-1].name == 'testfn'
 
 def test_intersect_slices():
     """Unit test for intersect_slices, relative_slice and chained_slice"""
-    from pynbody.util import intersect_slices
+    from pynbody.util.indexing_tricks import intersect_slices
 
     numbers = np.arange(1000)
 
@@ -24,9 +41,9 @@ def test_intersect_slices():
         s2 = random_slice()
         n1 = numbers[s1]
         n2 = numbers[s2]
-        s_inter = pynbody.util.intersect_slices(s1, s2, len(numbers))
+        s_inter = pynbody.util.indexing_tricks.intersect_slices(s1, s2, len(numbers))
         nx = numbers[s_inter]
-        nx2 = numbers[s1][pynbody.util.relative_slice(s1, s_inter)]
+        nx2 = numbers[s1][pynbody.util.indexing_tricks.relative_slice(s1, s_inter)]
         correct_intersection = set(n1).intersection(set(n2))
         assert set(nx) == correct_intersection
         assert set(nx2) == correct_intersection
@@ -34,17 +51,17 @@ def test_intersect_slices():
         s1 = random_slice()
         s2 = random_slice(20, 4)
         n3 = numbers[s1][s2]
-        s3 = pynbody.util.chained_slice(s1, s2)
+        s3 = pynbody.util.indexing_tricks.chained_slice(s1, s2)
         nx3 = numbers[s3]
         assert len(n3) == len(nx3)
         assert all([x == y for x, y in zip(n3, nx3)])
 
-        rel_slice_to_self = pynbody.util.relative_slice(s1, s1)
+        rel_slice_to_self = pynbody.util.indexing_tricks.relative_slice(s1, s1)
         assert rel_slice_to_self.step is None
         assert rel_slice_to_self.start == 0
 
     # test 'None' steps handled correctly
-    assert pynbody.util.intersect_slices(
+    assert pynbody.util.indexing_tricks.intersect_slices(
         slice(0, 5, None), slice(0, 5, None)) == slice(0, 5, None)
 
 
@@ -59,7 +76,7 @@ def test_intersect_indices():
         if len(t) == 0:
             continue
         ind = np.random.randint(0, len(t), 50)
-        new_ind = pynbody.util.index_before_slice(sl, ind)
+        new_ind = pynbody.util.indexing_tricks.index_before_slice(sl, ind)
 
         assert len(numbers[new_ind]) == len(numbers[sl][ind])
 
@@ -81,7 +98,7 @@ def test_slice_length():
         for start in range(end):
             for step in range(1, 10):
                 S = slice(0, end, step)
-                assert len(N[S]) == pynbody.util.indexing_length(S)
+                assert len(N[S]) == pynbody.util.indexing_tricks.indexing_length(S)
 
 
 def test_IC_grid_gen():
@@ -199,3 +216,16 @@ def test_is_sorted():
     assert pynbody.util.is_sorted(np.array([1, 2, 3])) == 1
     assert pynbody.util.is_sorted(np.array([1, 2, 1])) == 0
     assert pynbody.util.is_sorted(np.array([3, 2, 1])) == -1
+
+
+def test_setting_control():
+    global thingy
+    thingy = 1
+    sc = pynbody.util.SettingControl(globals(), "thingy", 2)
+    assert thingy == 2
+    with sc:
+        assert thingy == 2
+    assert thingy == 1
+    with sc:
+        assert thingy == 2
+    assert thingy == 1

@@ -1,15 +1,11 @@
-"""
+"""RAMSES-specific analysis utilities
 
-ramses_util
-===========
-
-Handy utilities for using RAMSES outputs in pynbody. For a complete
-demo on how to use RAMSES outputs with pynbody, have a look at the
-`ipython notebook demo
-<http://nbviewer.ipython.org/github/pynbody/pynbody/blob/master/examples/notebooks/pynbody_demo-ramses.ipynb>`_
+This module provides utilities for working with RAMSES simulations, in two main areas as below.
 
 File Conversion
 ---------------
+
+For running AHF or pkdgrav, you can convert ramses files to tipsy format using
 
 >>> pynbody.analysis.ramses_util.convert_to_tipsy_fullbox('output_00101') # will convert the whole output
 
@@ -29,35 +25,17 @@ Now we've got a file called `output_00101.tipsy` which holds only the
 Generating tform
 ----------------
 
-A problem with RAMSES outputs in pynbody is that the `tform` array is
-in funny units that aren't easily usable. To generate a new `tform`
-array (in Gyr) you can use the :func:`get_tform` defined here. It's
-very easy:
+Raw RAMSES outputs write the ``tform`` array in unusual units. In pynbody v2, when the user requests
+the ``tform`` array, it is converted to physical units using this module's routine :func:`get_tform`.
+This happens transparently and for most users it will not be necessary to call this function directly.
 
->>> s = pynbody.load('output_00101')
->>> pynbody.analysis.ramses_util.get_tform(s)
-
-By default, this will simply convert in-place the formation times.
-If you want the changes to be persistent, you can use
-
->>> pynbody.analysis.ramses_util.get_tform(s, use_part2birth=True)
-
-This now generates for each `partXXXX.outYYYYY` file a corresponding
-`birthXXXXX.outYYYYY` file containing the formation time in physical units.
-This uses the routine `part2birth` located in the
-RAMSES utils (see the `bitbucket repository
-<https://bitbucket.org/rteyssie/ramses>`_).
-
-:func:`get_tform` also deletes the previous `tform` array (not from disk, just
-from the currently loaded snapshot). The next time you call :func:`get_tform`,
-the data will be loaded from the disk and `part2birth` won't need to
-be run again.
 """
 
 import os
 import subprocess
 import warnings
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -65,7 +43,7 @@ import pynbody
 from pynbody.snapshot.ramses import RamsesSnap
 
 from .. import config_parser
-from ..analysis._cosmology_time import friedman
+from ..analysis.cosmology import age, tau
 from ..units import Unit
 
 ramses_utils = config_parser.get('ramses', 'ramses_utils')
@@ -75,26 +53,29 @@ part2birth_path = os.path.join(ramses_utils, "f90", "part2birth")
 
 def convert_to_tipsy_simple(output, halo=0, filt=None):
     """
-    Convert RAMSES output to tipsy format readable by
-    e.g. pkdgrav. This is a quick and dirty conversion, meant to be
-    used for quick visualization or other simple post
-    processing. Importantly, none of the cosmologically-relevant
-    information is carried forward. For a more complete conversion for
-    e.g. running through pkdgrav or Amiga Halo Finder, see
-    :func:`convert_to_tipsy_fullbox`.
+    Convert RAMSES output to tipsy format readable by e.g. pkdgrav or AHF.
+
+    .. warning::
+
+      This is a quick and dirty conversion, meant to be used for simple post-processing. Importantly, none of the
+      cosmologically-relevant information is carried forward. For a more complete conversion for e.g. running through
+      pkdgrav or Amiga Halo Finder, see :func:`convert_to_tipsy_fullbox`.
 
     The snapshot is put into units where G=1, time unit = 1 Gyr and
     mass unit = 2.222286e5 Msol.
 
-    **Input**:
+    Parameters
+    ----------
 
-    *output* : path to RAMSES output directory
+    output : str
+        Path to RAMSES output directory
 
-    **Optional Keywords**:
+    halo : int, optional
+        Which halo to center on (default = 0)
 
-    *filt* : a filter to apply to the box before writing out the tipsy file
+    filt : pynbody.filt, optional
+        A filter to apply to the box before writing out the tipsy file
 
-    *halo* : which hop halo to center on -- default = 0
 
     """
 
@@ -104,7 +85,7 @@ def convert_to_tipsy_simple(output, halo=0, filt=None):
     for key in ['pos', 'vel', 'mass', 'iord', 'metal']:
         try:
             s[key]
-        except:
+        except KeyError:
             pass
 
     s['eps'] = s.g['smooth'].min()
@@ -116,7 +97,7 @@ def convert_to_tipsy_simple(output, halo=0, filt=None):
     del(s.s['tform'])
     try:
         get_tform(s)
-    except:
+    except Exception:
         s.s['tform'] = -1.0
         s.s['tform'].units = 'Gyr'
 
@@ -124,7 +105,6 @@ def convert_to_tipsy_simple(output, halo=0, filt=None):
     dunit = 1.0  # in kpc
     denunit = massunit / dunit ** 3
     velunit = 8.0285 * np.sqrt(6.67384e-8 * denunit) * dunit
-    timeunit = dunit / velunit * 0.97781311
 
     s['pos'].convert_units('kpc')
     s['vel'].convert_units('%e km s^-1' % velunit)
@@ -140,25 +120,25 @@ def convert_to_tipsy_simple(output, halo=0, filt=None):
     s.g['temp']
     s.properties['a'] = pynbody.analysis.cosmology.age(s)
     if filt is not None:
-        s[filt].write(pynbody.tipsy.TipsySnap, '%s.tipsy' % output[-12:])
+        s[filt].write(pynbody.snapshot.tipsy.TipsySnap, '%s.tipsy' % output[-12:])
     else:
-        s.write(pynbody.tipsy.TipsySnap, '%s.tipsy' % output[-12:])
+        s.write(pynbody.snapshot.tipsy.TipsySnap, '%s.tipsy' % output[-12:])
 
 
 def get_tipsy_units(sim):
-    """
-    Returns snapshot `sim` units in the pkdgrav/gasoline unit
-    system.  This is probably not a function to be called by users,
-    but it is used instead by other routines for file conversion.
+    """Return the units in the pkdgrav/gasoline unit system for a RAMSES snapshot `sim`.
 
-    **Input**:
+    Parameters
+    ----------
 
-    *sim*: RAMSES simulation snapshot
+    sim : RamsesSnap
+        RAMSES simulation snapshot
 
-    **Return values**:
+    Returns
+    -------
 
-    *lenunit, massunit, timeunit* : tuple specifying the units in kpc, Msol, and Gyr
-
+    lenunit, massunit, timeunit, velunit, potentialunit : tuple
+        Units in kpc, Msol, Gyr, km/s, and kpc^2 Gyr^-2 a^-1
     """
 
     # figure out the units starting with mass
@@ -175,18 +155,20 @@ def get_tipsy_units(sim):
 
 
 def convert_to_tipsy_fullbox(s, write_param=True):
-    """
-    Convert RAMSES file `output` to tipsy format readable by pkdgrav
-    and Amiga Halo Finder. Does all unit conversions etc. into the
-    pkdgrav unit system. Creates a file called `output_fullbox.tipsy`.
+    """Convert RAMSES file `output` to tipsy format readable by pkdgrav and AHF.
 
-    **Input**:
+    This routine automatically performs all required conversions into the pkdgrav unit system.
 
-    *output*: name of RAMSES output
+    Creates a file called `output_fullbox.tipsy`.
 
-    **Optional Keywords**:
+    Parameters
+    ----------
 
-    *write_param*: whether or not to write the parameter file (default = True)
+    s : RamsesSnap
+        RAMSES snapshot
+
+    write_param : bool, optional
+        Whether or not to write a parameter file for pkdgrav (default = True)
 
     """
 
@@ -229,70 +211,92 @@ def convert_to_tipsy_fullbox(s, write_param=True):
     del(s['smooth'])
 
     s.write(filename='%s' %
-            tipsyfile, fmt=pynbody.tipsy.TipsySnap, binary_aux_arrays=True)
+            tipsyfile, fmt=pynbody.snapshot.tipsy.TipsySnap, binary_aux_arrays=True)
 
     if write_param:
         write_tipsy_param(s, tipsyfile)
 
 
 def write_tipsy_param(sim, tipsyfile):
-    """Write a pkdgrav-readable parameter file for RAMSES snapshot
-    `sim` with the prefix `filename`
+    """Write a pkdgrav-readable parameter file for the given RAMSES snapshot
+
+    Parameters
+    ----------
+
+    sim : RamsesSnap
+        RAMSES snapshot
+
+    tipsyfile : str
+        Path to the tipsy file that has been converted from the RAMSES snapshot `sim`
+
+    Notes
+    -----
+
+    pkdgrav may be downloaded `here <https://bitbucket.org/dpotter/pkdgrav3/src/master/>`_.
     """
 
     # determine units
     lenunit, massunit, timeunit, velunit, _ = get_tipsy_units(sim)
 
     # write the param file
-    f = open('%s.param' % tipsyfile, 'w')
-    f.write('dKpcUnit = %f\n' % lenunit)
-    f.write('dMsolUnit = %e\n' % massunit)
-    f.write('dOmega0 = %f\n' % sim.properties['omegaM0'])
-    f.write('dLambda = %f\n' % sim.properties['omegaL0'])
-    h = Unit('%f km s^-1 Mpc^-1' % (sim.properties['h'] * 100))
-    f.write('dHubble0 = %f\n' % h.in_units(velunit / lenunit))
-    f.write('bComove = 1\n')
-    f.close()
-
+    with open('%s.param' % tipsyfile, 'w') as f:
+        f.write('dKpcUnit = %f\n' % lenunit)
+        f.write('dMsolUnit = %e\n' % massunit)
+        f.write('dOmega0 = %f\n' % sim.properties['omegaM0'])
+        f.write('dLambda = %f\n' % sim.properties['omegaL0'])
+        h = Unit('%f km s^-1 Mpc^-1' % (sim.properties['h'] * 100))
+        f.write('dHubble0 = %f\n' % h.in_units(velunit / lenunit))
+        f.write('bComove = 1\n')
 
 def write_ahf_input(sim, tipsyfile):
-    """Write an input file that can be used by the `Amiga Halo Finder
-    <http://popia.ft.uam.es/AHF/Download.html>`_ with the
-    corresponding `tipsyfile` which is the `sim` in tipsy format.
+    """Write an input file for AHF for the RAMSES snapshot `sim` and the converted tipsy file `tipsyfile`
+
+    Parameters
+    ----------
+
+    sim : RamsesSnap
+        RAMSES snapshot
+
+    tipsyfile : str
+        Path to the tipsy file that has been converted from the RAMSES snapshot `sim`
+
+    Notes
+    -----
+
+    Amiga Halo Finder may be downloaded `here <http://popia.ft.uam.es/AHF/Download.html>`_.
+
     """
 
     # determine units
-    lenunit, massunit, timeunit, velunit, _ = get_tipsy_units(sim)
-    h = Unit('%f km s^-1 Mpc^-1' % (sim.properties['h'] * 100))
+    _lenunit, massunit, _timeunit, velunit, _ = get_tipsy_units(sim)
 
-    f = open('%s.AHF.input' % tipsyfile, 'w')
-    f.write('[AHF]\n')
-    f.write('ic_filename = %s\n' % tipsyfile)
-    f.write('ic_filetype = 90\n')
-    f.write('outfile_prefix = %s\n' % tipsyfile)
-    f.write('LgridDomain = 256\n')
-    f.write('LgridMax = 2097152\n')
-    f.write('NperDomCell = 5\n')
-    f.write('NperRefCell = 5\n')
-    f.write('VescTune = 1.0\n')
-    f.write('NminPerHalo = 50\n')
-    f.write('RhoVir = 0\n')
-    f.write('Dvir = 200\n')
-    f.write('MaxGatherRad = 1.0\n')
-    f.write('[TIPSY]\n')
-    f.write('TIPSY_BOXSIZE = %e\n' % (sim.properties['boxsize'].in_units(
-        'Mpc') * sim.properties['h'] / sim.properties['a']))
-    f.write('TIPSY_MUNIT   = %e\n' % (massunit * sim.properties['h']))
-    f.write('TIPSY_OMEGA0  = %f\n' % sim.properties['omegaM0'])
-    f.write('TIPSY_LAMBDA0 = %f\n' % sim.properties['omegaL0'])
-    f.write('TIPSY_VUNIT   = %e\n' %
-            velunit.ratio('km s^-1 a', **sim.conversion_context()))
-    f.write('TIPSY_EUNIT   = %e\n' % (
-        (pynbody.units.k / pynbody.units.m_p).in_units('km^2 s^-2 K^-1') * 5. / 3.))
-    f.close()
+    with open('%s.AHF.input' % tipsyfile, 'w') as f:
+        f.write('[AHF]\n')
+        f.write('ic_filename = %s\n' % tipsyfile)
+        f.write('ic_filetype = 90\n')
+        f.write('outfile_prefix = %s\n' % tipsyfile)
+        f.write('LgridDomain = 256\n')
+        f.write('LgridMax = 2097152\n')
+        f.write('NperDomCell = 5\n')
+        f.write('NperRefCell = 5\n')
+        f.write('VescTune = 1.0\n')
+        f.write('NminPerHalo = 50\n')
+        f.write('RhoVir = 0\n')
+        f.write('Dvir = 200\n')
+        f.write('MaxGatherRad = 1.0\n')
+        f.write('[TIPSY]\n')
+        f.write('TIPSY_BOXSIZE = %e\n' % (sim.properties['boxsize'].in_units(
+            'Mpc') * sim.properties['h'] / sim.properties['a']))
+        f.write('TIPSY_MUNIT   = %e\n' % (massunit * sim.properties['h']))
+        f.write('TIPSY_OMEGA0  = %f\n' % sim.properties['omegaM0'])
+        f.write('TIPSY_LAMBDA0 = %f\n' % sim.properties['omegaL0'])
+        f.write('TIPSY_VUNIT   = %e\n' %
+                velunit.ratio('km s^-1 a', **sim.conversion_context()))
+        f.write('TIPSY_EUNIT   = %e\n' % (
+            (pynbody.units.k / pynbody.units.m_p).in_units('km^2 s^-2 K^-1') * 5. / 3.))
 
 
-def get_tform_using_part2birth(sim, part2birth_path):
+def _get_tform_using_part2birth(sim, part2birth_path):
     from scipy.io import FortranFile
 
     if hasattr(sim, 'base'):
@@ -337,15 +341,15 @@ def get_tform_using_part2birth(sim, part2birth_path):
         done += len(new)
 
         birth_file.close()
+    assert done == len(top.s), f"Not all particles have a formation time. Found {done}/{len(top.s)}"
     top.s['tform'].units = 'Gyr'
 
     return sim.s['tform']
 
-
-def get_tform(sim, use_part2birth=None, part2birth_path=part2birth_path):
+def get_tform(sim, *, times_are_proper: bool, use_part2birth: Optional[bool]=None, part2birth_path: str=part2birth_path, ):
     """
 
-    Convert conformal times to physical times for stars and **replaces** the original
+    Convert RAMSES times to physical times for stars and **replaces** the original
      `tform` array.
 
     Parameters
@@ -358,70 +362,66 @@ def get_tform(sim, use_part2birth=None, part2birth_path=part2birth_path):
     part2birth_path : str, optional
         Path to the `part2birth` util. Only used if `use_part2birth` is also True.
         See notes for the default value.
-
+    times_are_proper : boolean, optional
+        If True, `tform` is assumed to be in proper time.
+        If False, it is assumed to be in conformal time.
 
     Notes
     -----
     The behaviour of the function can be customized in the configuration file.
 
-    The value `use_part2birth_by_default` controls whether the conversion should
-    be made using `part2birth` or in Python. It can be set as follows
+    The value ``use_part2birth_by_default`` controls whether the conversion should
+    be made using ``part2birth`` or in Python. It can be set as follows
+
+    .. code-block:: ini
 
         [ramses]
         use_part2birth_by_default = True  # will use part2birth to convert times
         use_part2birth_by_default = False  # will use internal Python routine
 
-    The default path to `part2birth` is obtained by joining the RAMSES utils
-    path (as read from configuration) and `f90/part2birth`.
+    The default path to ``part2birth`` is obtained by joining the RAMSES utils
+    path (as read from configuration) and ``f90/part2birth``.
 
     For example, with the following configuration,
+
+    .. code-block:: ini
 
         [ramses]
         ramses_utils = /home/user/ramses/utils
 
-    the default path would be `/home/user/ramses/utils/f90/part2birth`.
+    the default path would be ``/home/user/ramses/utils/f90/part2birth``.
 
     """
     if use_part2birth is None:
         use_part2birth = config_parser.getboolean('ramses', 'use_part2birth_by_default')
 
     if use_part2birth:
-        return get_tform_using_part2birth(sim, part2birth_path=part2birth_path)
+        return _get_tform_using_part2birth(sim, part2birth_path=part2birth_path)
 
     if hasattr(sim, 'base'):
         top = sim.base
     else:
         top = sim
 
-    conformal_ages = top.star["tform_raw"].view(np.ndarray)
+    birth_raw = top.star["tform_raw"].view(np.ndarray)
 
-    cm_per_km = 1e5
-    cm_per_Mpc = 3.085677580962325e+24
-    s_per_Gyr = 3.1556926e+16
+    H0 = (top.properties["h"] * 100 * Unit("km s^-1 Mpc^-1")).in_units("Gyr^-1")
 
-    tau_frw, t_frw, dtau, n_frw, time_tot = friedman(
-        top.properties["omegaM0"],
-        top.properties["omegaL0"],
-        1.0 - top.properties["omegaM0"] - top.properties["omegaL0"],
-    )
-    h100 = top.properties["h"]
-    nOver2 = n_frw / 2
-    unit_t = top._info["unit_t"]
-    t_scale = 1.0 / (h100 * 100 * cm_per_km / cm_per_Mpc) / unit_t
+    if times_are_proper:
+        # Times are computed in units of H0
+        # with a value of 0 corresponding to z=0
+        times = birth_raw
 
-    # calculate index into lookup table (n_frw elements in
-    # lookup table)
-    dage = 1 + (10 * conformal_ages / dtau)
-    dage = np.minimum(dage, nOver2 + (dage - nOver2) / 10.0)
-    iage = np.array(dage, dtype=np.int32)
+        time_tot = age(top, z=0) * H0
+        birth_date = (time_tot + times) / H0
+    else:
+        h0 = top.properties["h"]
+        aexp_bins = np.geomspace(1e-3, 1, 10_000)
+        z_bins = 1 / aexp_bins - 1
+        tau_bins = tau(top, z=z_bins, unit="0.01 s Mpc km^-1") * h0
+        age_bins = age(top, z=z_bins)
+        birth_date = np.interp(birth_raw, tau_bins, age_bins)
 
-    # linearly interpolate physical times from t_frw and tau_frw lookup
-    # tables.
-    t = t_frw[iage] * (conformal_ages - tau_frw[iage - 1]) / (tau_frw[iage] - tau_frw[iage - 1])
-    t = t + (
-        t_frw[iage - 1] * (conformal_ages - tau_frw[iage]) / (tau_frw[iage - 1] - tau_frw[iage])
-    )
-
-    top.s["tform"] = pynbody.analysis.cosmology.age(sim, z=0) + t * t_scale * unit_t / s_per_Gyr
-    top.s['tform'].units = 'Gyr'
+    top.s["tform"] = birth_date
+    top.s['tform'].units = "Gyr"
     return sim.s["tform"]
