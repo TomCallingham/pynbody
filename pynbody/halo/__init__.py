@@ -90,8 +90,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("pynbody.halo")
 
-
 class DummyHalo(snapshot.util.ContainerWithPhysicalUnitsOption):
+
     def __init__(self):
         self.properties = {}
 
@@ -130,7 +130,8 @@ class Halo(snapshot.subsnap.IndexedSubSnap):
         """A HaloCatalogue object containing only the subhalos of this halo."""
         return self._halo_catalogue._get_subhalo_catalogue(self._halo_number)
 
-    def physical_units(self, distance="kpc", velocity="km s^-1", mass="Msol", persistent=True, convert_parent=True):
+
+    def physical_units(self, distance='kpc', velocity='km s^-1', mass='Msol', persistent=True, convert_parent=True):
         if convert_parent:
             self._halo_catalogue.physical_units(distance=distance, velocity=velocity, mass=mass, persistent=persistent)
         else:
@@ -176,7 +177,9 @@ class HierarchicalHalo(snapshot.subsnap.HierarchyIndexedSubSnap):
             self._autoconvert_properties()
 
 
-class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclasses):
+class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption,
+                    iter_subclasses.IterableSubclasses):
+
     """Generic halo catalogue object.
 
     To the user, this presents a simple interface where calling ``h[i]`` returns halo ``i``. Properties of halos
@@ -371,8 +374,8 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption, iter_subclas
 
         This is a convenience function for subclasses to use."""
         if not hasattr(self, "_iord_to_fpos"):
-            if "iord" in self.base.loadable_keys() or "iord" in self.base.keys():
-                self._iord_to_fpos = make_iord_to_offset_mapper(self.base["iord"])
+            if 'iord' in self.base.loadable_keys() or 'iord' in self.base.keys():
+                self._iord_to_fpos = make_iord_to_offset_mapper(self.base['iord'])
 
             else:
                 warnings.warn(
@@ -446,7 +449,7 @@ class HaloCatalogue(snapshot.util.ContainerWithPhysicalUnitsOption, iter_subclas
             take=self._get_particle_indices_one_halo_using_list_if_available(halo_number, halo_index),
         )
 
-    def physical_units(self, distance="kpc", velocity="km s^-1", mass="Msol", persistent=True, convert_parent=False):
+    def physical_units(self, distance='kpc', velocity='km s^-1', mass='Msol', persistent=True, convert_parent=False):
         self.base.physical_units(distance=distance, velocity=velocity, mass=mass, persistent=persistent)
 
         # Convert all instantiated subhalos

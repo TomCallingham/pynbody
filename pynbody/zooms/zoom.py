@@ -1,4 +1,3 @@
-# import agama
 from ..snapshot import SimSnap
 
 from .orientation import load_orientation
@@ -18,13 +17,14 @@ class ZoomSnap:
         # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
 
-        self.hierarchy=False
+        self.hierarchy = False
         self._init_lazy_orientation()
 
     @property
-    def potential(self): #-> agama.Potential:
+    def potential(self):  # -> agama.Potential:
         if self._pot is None:
             from .agama_potential import agama_pynbody_load
+
             self._pot = agama_pynbody_load(self, symm="axi")
         return self._pot
 
@@ -43,7 +43,6 @@ class ZoomSnap:
     def del_cached_keys(self, fam_str, del_keys) -> None:
         del_cached_props(self, fam_str, del_keys)
 
-
     @classmethod
     def derived_array(cls, fn):
         if cls not in SimSnap._derived_array_registry:
@@ -52,7 +51,7 @@ class ZoomSnap:
         fn.__stable__ = False
         return fn
 
-    def _check_analysis_folder(self,analysis_folder):
+    def _check_analysis_folder(self, analysis_folder):
         if analysis_folder is None:
             return
         if os.path.isdir(analysis_folder):
@@ -61,21 +60,22 @@ class ZoomSnap:
         os.makedirs(analysis_folder)
 
     def _init_lazy_orientation(self):
-        '''must be run after others!'''
+        """must be run after others!"""
         if not self.orientate:
             return
         self.orientation
-        assert(hasattr(self,"_translate_array_name"))
+        assert hasattr(self, "_translate_array_name")
         self._translate_array_name._pynbody_to_format_map["raw_pos"] = ["Coordinates"]
         self._translate_array_name._pynbody_to_format_map["raw_vel"] = ["Velocities"]
         self._translate_array_name._pynbody_to_all_format_map["raw_vel"] = ["Velocities"]
         self._translate_array_name._pynbody_to_all_format_map["raw_pos"] = ["Coordinates"]
-        translate_pos_vel = {"pos":"raw_pos", "vel":"raw_vel"}
-        self._loadable_keys = [translate_pos_vel.get(key,key) for key in self._loadable_keys]
-        self._loadable_family_keys = {famkey:[translate_pos_vel.get(key,key) for key in _loadable_keys] for famkey,_loadable_keys in self._loadable_family_keys.items()}
+        translate_pos_vel = {"pos": "raw_pos", "vel": "raw_vel"}
+        self._loadable_keys = [translate_pos_vel.get(key, key) for key in self._loadable_keys]
+        self._loadable_family_keys = {
+            famkey: [translate_pos_vel.get(key, key) for key in _loadable_keys]
+            for famkey, _loadable_keys in self._loadable_family_keys.items()
+        }
 
 
-
-
-#Needed to load zoom attributes
+# Needed to load zoom attributes
 from . import zoom_attributes
