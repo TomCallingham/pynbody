@@ -551,13 +551,14 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         sl = self._get_family_slice(fam)
         return self._get_array(name)[sl]
 
-    # def family_keys(self, fam=None):
-    #     # TODO: Check this - CAN have mixed family subsnaps.
-    #     # print("In Hierarchy get fam keys")
-    #     # We now define there to be no family-specific subproperties,
-    #     # because all properties can be accessed through standard
-    #     # __setitem__, __getitem__ methods
-    #     return []
+    def family_keys(self, fam=None):
+        # Indexd SubSnaps don't do family arrays!
+        # TODO: Check this - CAN have mixed family subsnaps.
+        # print("In Hierarchy get fam keys")
+        # We now define there to be no family-specific subproperties,
+        # because all properties can be accessed through standard
+        # __setitem__, __getitem__ methods
+        return []
 
     def _set_family_array(self, name, family, value, index=None):
         # TODO: update

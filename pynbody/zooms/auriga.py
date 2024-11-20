@@ -3,6 +3,7 @@ from ..snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
 from ..halo import Halo, HierarchicalHalo
 from ..snapshot import IndexedSubSnap
 from .. import units
+import numpy as np
 
 from .zoom import ZoomSnap
 
@@ -108,6 +109,8 @@ class AurigaLikeHDFSnap(ZoomSnap, GadgetHDFSnap, AurigaStarsWind):
     """Reads AurigaHDF"""
 
     _readable_hdf5_test_key = "PartType1/SubGroupNumber"
+    _namemapper_config_section = "auriga-name-mapping"
+    # _multifile_manager_class = _GadgetHdfMultiFileManager
 
     def __init__(self, particle_filename, halo_filename, analysis_folder, level=4, orientate=True, use_cache=False):
         GadgetHDFSnap.__init__(self, particle_filename)
@@ -118,6 +121,7 @@ class AurigaLikeHDFSnap(ZoomSnap, GadgetHDFSnap, AurigaStarsWind):
         ZoomSnap.__init__(self, orientate, use_cache=use_cache, analysis_folder=analysis_folder)
 
         self.forcefloat64 = True
+        self._mass_dtype = np.float64
 
     def halos(self, subhalos=False) -> AurigaSubfindHDFCatalogue:
         """Load the Auriga FOF halos.

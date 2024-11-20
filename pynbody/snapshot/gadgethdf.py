@@ -47,7 +47,7 @@ class _DummyHDFData:
     """A stupid class to allow emulation of mass arrays for particles
     whose mass is in the header"""
 
-    def __init__(self, value, length, dtype):
+    def __init__(self, value, length: int, dtype):
         self.value = value
         self.length = length
         self.size = length
@@ -59,6 +59,11 @@ class _DummyHDFData:
 
     def read_direct(self, target):
         target[:] = self.value
+
+    def __getitem__(self, _):
+        """Added to fix read filtered read with minimal effort"""
+        # TODO: This is feels like a waste. If reading in indexes, we don't care and can just broadcast
+        return np.full(self.shape, self.value)
 
 
 class _GadgetHdfMultiFileManager:
@@ -373,10 +378,7 @@ class GadgetHDFSnap(SimSnap):
             except (IndexError, KeyError):
                 pass
 
-        ret = particle_group
-        for tpart in hdf_name.split("/"):
-            ret = ret[tpart]
-        return ret
+        return particle_group[hdf_name]
 
     @staticmethod
     def _get_cosmo_factors(hdf, arr_name):
@@ -479,13 +481,14 @@ class GadgetHDFSnap(SimSnap):
                         ** util.fractions.Fraction.from_float(float(power)).limit_denominator()
                     )
 
-        if expectedCgsConversionFactor is not None:
-            if not np.allclose(conversion, expectedCgsConversionFactor, rtol=1e-3):
-                raise units.UnitsException(
-                    "Error with unit read out from HDF. Inferred CGS conversion factor is {!r} but HDF requires {!r}".format(
-                        conversion, expectedCgsConversionFactor
-                    )
+        if expectedCgsConversionFactor is not None and not np.allclose(
+            conversion, expectedCgsConversionFactor, rtol=1e-3
+        ):
+            raise units.UnitsException(
+                "Error with unit read out from HDF. Inferred CGS conversion factor is {!r} but HDF requires {!r}".format(
+                    conversion, expectedCgsConversionFactor
                 )
+            )
 
         return arr_units
 
@@ -572,6 +575,7 @@ class GadgetHDFSnap(SimSnap):
             my_i1 = 0
 
             set_array = full_target_array[fam_slice]
+
             dataset = np.array([])
             for hdf in self._all_hdf_groups_in_family(loading_fam):
                 npart = hdf["ParticleIDs"].size
@@ -595,6 +599,8 @@ class GadgetHDFSnap(SimSnap):
                         dataset = self._get_hdf_dataset(hdf, translated_name)
                     except KeyError:
                         continue
+
+                # It seems to be faster to load it in small, then filter
                 data = np.asarray(dataset[:])
                 data_indexes = fam_indexes[my_i0:my_i1] - i0
                 set_array[my_i0:my_i1] = data[data_indexes]
