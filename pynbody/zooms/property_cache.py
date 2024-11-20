@@ -6,7 +6,7 @@ from functools import wraps
 import h5py
 from ..array import SimArray
 
-#Depreciated? We Don't use this anymore
+# Depreciated? We Don't use this anymore
 
 
 def get_fam_str(sim) -> str:
@@ -14,6 +14,7 @@ def get_fam_str(sim) -> str:
     if len(fams) > 1:
         raise AttributeError("Only one family at a time for this property")
     return str(fams[0])
+
 
 def cache_prop(func) -> Callable:
     @wraps(func)
@@ -74,10 +75,10 @@ def save_cached(sim, func_str, fam, result) -> SimArray:
     return result
 
 
-def del_cached_props(sim, fam, del_props) -> None:
+def del_cached_props(sim, fam_str: str, del_props: list[str]) -> None:
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
-    file = f"{base.analysis_folder}{fam}_cached_properties.hdf5"
-    print(f"deleting {del_props} for {fam}")
+    file = f"{base.analysis_folder}{fam_str}_cached_properties.hdf5"
+    print(f"deleting {del_props} for {fam_str}")
     with h5py.File(file, "a") as hf:
         for p in del_props:
             print(f"deleting {p}")
@@ -85,10 +86,7 @@ def del_cached_props(sim, fam, del_props) -> None:
                 del hf[p]
 
 
-
-
-
-def save_multiple_cached(sim, data_dict) -> None:
+def save_multiple_cached(sim, data_dict: dict[str, np.ndarray]) -> None:
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
     if not base.use_cache:
         return

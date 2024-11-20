@@ -17,6 +17,7 @@ class ContainerWithPhysicalUnitsOption:
     Defines an abstract class that has properties and arrays
     that can be converted to physical units.
     """
+
     _autoconvert = None
     _units_conversion_cache = {}
 
@@ -36,10 +37,7 @@ class ContainerWithPhysicalUnitsOption:
             cls._units_conversion_cache[key] = None
             return
 
-        new_unit = reduce(
-            lambda x, y: x * y,
-            [a ** b for a, b in zip(dims, d[:ucut])]
-        )
+        new_unit = reduce(lambda x, y: x * y, [a**b for a, b in zip(dims, d[:ucut])])
         cls._units_conversion_cache[key] = new_unit
 
         if new_unit is not None and new_unit != from_unit:
@@ -61,13 +59,16 @@ class ContainerWithPhysicalUnitsOption:
         if dims is None:
             return
 
-        if ar.units is None or isinstance(ar.units,units.NoUnit):
+        if ar.units is None or isinstance(ar.units, units.NoUnit):
             return
 
-        new_unit = self._cached_unit_conversion(ar.units, dims, ucut=ucut)
+        # TCall: Added try/except to fix error with fundamental temperature units?
+        try:
+            new_unit = self._cached_unit_conversion(ar.units, dims, ucut=ucut)
+        except Exception:
+            return
         if new_unit is not None:
             ar.convert_units(new_unit)
-
 
     def _autoconvert_properties(self, dims=None):
         dims = self._get_dims(dims)
@@ -95,7 +96,7 @@ class ContainerWithPhysicalUnitsOption:
         for ar in all:
             self._autoconvert_array_unit(ar.ancestor, dims)
 
-    def physical_units(self, distance='kpc', velocity='km s^-1', mass='Msol', persistent=True, convert_parent=True):
+    def physical_units(self, distance="kpc", velocity="km s^-1", mass="Msol", persistent=True, convert_parent=True):
         """
         Converts all arrays' units to be consistent with the distance, velocity, mass basis units specified.
 
@@ -136,7 +137,7 @@ class ContainerWithPhysicalUnitsOption:
             worry about this subtlety; things should 'just work' if you ignore the `convert_parent` option.
 
         """
-        dims = [units.Unit(x) for x in (distance, velocity, mass, 'a', 'h')]
+        dims = [units.Unit(x) for x in (distance, velocity, mass, "a", "h")]
 
         self._autoconvert_arrays(dims)
         self._autoconvert_properties(dims)

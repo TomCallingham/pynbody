@@ -1,4 +1,4 @@
-from ..snapshot import SimSnap
+from ..snapshot.simsnap import SimSnap
 
 from .orientation import load_orientation
 from .property_cache import del_cached_props, load_cached_props
@@ -6,12 +6,18 @@ import os
 
 
 class ZoomSnap:
-    def __init__(self, orientate=True, use_cache=False, analysis_folder=None) -> None:
+    def __init__(
+        self,
+        orientate: bool = True,
+        use_cache: bool = False,
+        analysis_folder: str | None = None,
+        orientation: None | dict = None,
+    ) -> None:
         self.analysis_folder = analysis_folder
         self._check_analysis_folder(analysis_folder)
         self.use_cache = use_cache if analysis_folder is not None else False
         self.orientate = orientate
-        self._orientation = None
+        self._orientation = orientation
         self._pot = None
         self._cache = None
         # Some unit bugs if config option is used? Unclear...  :(
@@ -40,7 +46,7 @@ class ZoomSnap:
             self._cache = load_cached_props(self)
         return self._cache
 
-    def del_cached_keys(self, fam_str, del_keys) -> None:
+    def del_cached_keys(self, fam_str: str, del_keys) -> None:
         del_cached_props(self, fam_str, del_keys)
 
     @classmethod
@@ -51,7 +57,7 @@ class ZoomSnap:
         fn.__stable__ = False
         return fn
 
-    def _check_analysis_folder(self, analysis_folder):
+    def _check_analysis_folder(self, analysis_folder: str | None):
         if analysis_folder is None:
             return
         if os.path.isdir(analysis_folder):
