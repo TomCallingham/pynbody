@@ -536,9 +536,14 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         self._arrays[name] = value
 
     def __delitem__(self, name):
-        del self._arrays[name]
-        if name in self._derived_array_names:
-            del self._derived_array_names[self._derived_array_names.index(name)]
+        if name in self._arrays:
+            del self._arrays[name]
+            if name in self._derived_array_names:
+                del self._derived_array_names[self._derived_array_names.index(name)]
+        elif name in self._ancestors_of_arrays:
+            del self._ancestors_of_arrays[name]
+        else:
+            print(f"No array of name {name} found to delete?")
 
     def _get_family_slice(self, fam):
         fam_slice = self._family_slice.get(fam, slice(0, 0))
