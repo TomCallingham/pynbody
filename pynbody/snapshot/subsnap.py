@@ -22,7 +22,6 @@ class ExposedBaseSnapshotMixin:
         "immediate_mode",
         "delay_promotion",
         # ME
-        "_mass_dtype",
         "hierarchy",
     ]
 
@@ -36,7 +35,8 @@ class ExposedBaseSnapshotMixin:
         self._get_array_lock = self.base._get_array_lock
 
         for x in self._inherited:
-            setattr(self, x, getattr(self.base, x))
+            if hasattr(self.base, x):
+                setattr(self, x, getattr(self.base, x))
 
 
 class SubSnapBase(SimSnap):
