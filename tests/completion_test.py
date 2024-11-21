@@ -31,6 +31,13 @@ def test_ipython_key_completions():
         completions = list(ip.Completer.completions(text, cursor_pos))
 
     # Extract completion texts
-    completion_list = [str(c.text)[1:-1] for c in completions]
+    completion_list = [str(c.text)[1:-1] for c in completions]  # if c.
     expected_keys = f.all_keys()
+
     assert set(completion_list) == set(expected_keys)
+
+
+if __name__ == "__main__":
+    print("testing ipython completions...")
+    test_ipython_key_completions()
+    print("passed!")

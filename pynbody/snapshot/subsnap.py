@@ -41,7 +41,9 @@ class ExposedBaseSnapshotMixin:
 
 class SubSnapBase(SimSnap):
     def __init__(self, base):
+        super().__init__()
         self._subsnap_base = base
+        self._transformations = base._transformations
 
     def _get_array(self, name, index=None, always_writable=False):
         if self.immediate_mode:
@@ -152,8 +154,11 @@ class SubSnapBase(SimSnap):
         fam = fam or self._unifamily
         return self._subsnap_base.is_derived_array(array_name, fam)
 
-    def unlink_array(self, array_name):
-        self._subsnap_base.unlink_array(array_name)
+    def find_deriving_function(self, name):
+        return self._subsnap_base.find_deriving_function(name)
+
+    def unlink_array(self, name):
+        self._subsnap_base.unlink_array(name)
 
     def get_index_list(self, relative_to, of_particles=None):
         if of_particles is None:
