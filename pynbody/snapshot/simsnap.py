@@ -242,8 +242,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             self._auto_keys = self.all_keys()
         return self._auto_keys
 
-
-    def __getitem__(self, i) -> array.SimArray | subsnap.SubSnapBase :
+    def __getitem__(self, i) -> array.SimArray | subsnap.SubSnapBase:
         """Return either a specific array or a subview of this simulation. See
         the class documentation (:class:`SimSnap`) for more information."""
         from . import subsnap
@@ -928,7 +927,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                         anc._autoconvert_array_unit(anc[f][v])
                         anc.apply_transformation_to_array(v, f)
 
-
     ############################################
     # VECTOR TRANSFORMATIONS OF THE SNAPSHOT
     ############################################
@@ -1158,7 +1156,6 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         fams.append(family)
 
         if dtype is not None and previous_dtype is not None and np.dtype(dtype).kind != np.dtype(previous_dtype).kind:
-
             # We insist on the data types being the same kind for, e.g. sim.gas['my_prop'] and sim.star['my_prop']
             # This makes promotion to simulation-level arrays possible.
             #
@@ -1166,9 +1163,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             # this generated issues where behaviour dependeded on arbitrary order of user operations, (see tests
             # simsnap_test.py:test_float32_float64_compatibility).
 
-            raise ValueError("Requested data type {dtype} is not consistent with existing data type {previous_dtype} for family array {array_name}")
-
-
+            raise ValueError(
+                "Requested data type {dtype} is not consistent with existing data type {previous_dtype} for family array {array_name}"
+            )
 
         if all([x in fams for x in self_families]):
             # If, once we created this array, *all* families would have

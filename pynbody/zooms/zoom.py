@@ -1,5 +1,6 @@
 from ..snapshot.simsnap import SimSnap
 
+from functools import cached_property
 from .orientation import load_orientation
 from .property_cache import del_cached_props, load_cached_props
 import os
@@ -18,7 +19,6 @@ class ZoomSnap:
         self.use_cache = use_cache if analysis_folder is not None else False
         self.orientate = orientate
         self._orientation = orientation
-        self._pot = None
         self._cache = None
         # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
@@ -26,13 +26,11 @@ class ZoomSnap:
         self.hierarchy = False
         self._init_lazy_orientation()
 
-    @property
+    @cached_property
     def potential(self):  # -> agama.Potential:
-        if self._pot is None:
-            from .agama_potential import agama_pynbody_load
+        from .agama_potential import agama_pynbody_load
 
-            self._pot = agama_pynbody_load(self, symm="axi")
-        return self._pot
+        return agama_pynbody_load(self, symm="axi")
 
     @property
     def orientation(self) -> dict:
