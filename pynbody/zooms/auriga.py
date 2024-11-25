@@ -3,6 +3,7 @@ from ..snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
 from ..halo import Halo, HierarchicalHalo
 from ..snapshot import IndexedSubSnap
 from .. import units
+import numpy as np
 
 from .zoom import ZoomSnap
 
@@ -22,7 +23,21 @@ class AurigaStarsWind:
         return self._stars
 
     @property
+    def star(self) -> IndexedSubSnap:
+        if self._stars is None:
+            stars = self.s  # pyright: ignore
+            self._stars = stars[stars["aform"] > 0]
+        return self._stars
+
+    @property
     def winds(self) -> IndexedSubSnap:
+        if self._winds is None:
+            stars = self.s  # pyright: ignore
+            self._winds = stars[stars["aform"] < 0]
+        return self._winds
+
+    @property
+    def wind(self) -> IndexedSubSnap:
         if self._winds is None:
             stars = self.s  # pyright: ignore
             self._winds = stars[stars["aform"] < 0]
@@ -42,7 +57,7 @@ class AurigaSubFindHdfMultiFileManager(_GadgetHdfMultiFileManager):
                     to_del.append(i)
         for i in to_del[::-1]:
             del self._filenames[i]
-        self._numfiles -= len(to_del) # type: ignore
+        self._numfiles -= len(to_del)  # type: ignore
 
 
 class AurigaSubfindHDFCatalogue(ArepoSubfindHDFCatalogue):
@@ -51,14 +66,14 @@ class AurigaSubfindHDFCatalogue(ArepoSubfindHDFCatalogue):
         self.physical_units()
 
     @classmethod
-    def _get_catalogue_multifile(cls, sim, user_provided_filename)->AurigaSubFindHdfMultiFileManager:
+    def _get_catalogue_multifile(cls, sim, user_provided_filename) -> AurigaSubFindHdfMultiFileManager:
         if user_provided_filename is None:
             raise AssertionError("AurigaSubfind neeeds filename provided!")
         return AurigaSubFindHdfMultiFileManager(user_provided_filename)
 
-    def _get_halo(self, halo_number) -> Halo|HierarchicalHalo:
+    def _get_halo(self, halo_number) -> Halo | HierarchicalHalo:
         halo_index = self.number_mapper.number_to_index(halo_number)
-        if hasattr(self._base(),"hierarchy") and self._base().hierarchy:
+        if hasattr(self._base(), "hierarchy") and self._base().hierarchy:
             return AurigaHierarchicalHalo(
                 halo_number,
                 self._get_properties_one_halo_using_cache_if_available(halo_number, halo_index),
@@ -80,6 +95,7 @@ class AurigaHalo(Halo, AurigaStarsWind):
         Halo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
         AurigaStarsWind.__init__(self)
 
+
 class AurigaHierarchicalHalo(HierarchicalHalo, AurigaStarsWind):
     def __init__(self, halo_number, properties, halo_catalogue, *args, **kwa):
         HierarchicalHalo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
@@ -89,10 +105,12 @@ class AurigaHierarchicalHalo(HierarchicalHalo, AurigaStarsWind):
 auriga_eps = {4: 369 * units.pc, 3: 184 * units.pc}
 
 
-class AurigaLikeHDFSnap(ZoomSnap,GadgetHDFSnap, AurigaStarsWind):
+class AurigaLikeHDFSnap(ZoomSnap, GadgetHDFSnap, AurigaStarsWind):
     """Reads AurigaHDF"""
 
     _readable_hdf5_test_key = "PartType1/SubGroupNumber"
+    _namemapper_config_section = "auriga-name-mapping"
+    # _multifile_manager_class = _GadgetHdfMultiFileManager
 
     def __init__(self, particle_filename, halo_filename, analysis_folder, level=4, orientate=True, use_cache=False):
         GadgetHDFSnap.__init__(self, particle_filename)
@@ -101,6 +119,9 @@ class AurigaLikeHDFSnap(ZoomSnap,GadgetHDFSnap, AurigaStarsWind):
         AurigaStarsWind.__init__(self)
         self.physical_units()
         ZoomSnap.__init__(self, orientate, use_cache=use_cache, analysis_folder=analysis_folder)
+
+        self.forcefloat64 = True
+        self._mass_dtype = np.float64
 
     def halos(self, subhalos=False) -> AurigaSubfindHDFCatalogue:
         """Load the Auriga FOF halos.
@@ -114,7 +135,6 @@ class AurigaLikeHDFSnap(ZoomSnap,GadgetHDFSnap, AurigaStarsWind):
         keys = GadgetHDFSnap.derivable_keys(self)
         res = [key for key in keys if key not in auriga_bad_keys]
         return res
-
 
 
 auriga_bad_keys = [

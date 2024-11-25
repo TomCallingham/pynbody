@@ -6,13 +6,15 @@ from .auriga import AurigaLikeHDFSnap
 
 HubbleTime = 13.815
 
+
 @AurigaLikeHDFSnap.derived_quantity
 def temp(sim) -> SimArray:
     """Xe Electron Abundance"""
     # Temperature estimate from:
     # https://www.tng-project.org/data/forum/topic/338/cold-and-hot-gas/#c3
-    Xe = sim["ElectronAbundance"]
-    internalenergy = sim["u"]
+    Xe = sim["ElectronAbundance"].v
+    internalenergy = sim["u"].v
+
     XH = 0.76  # the hydrogen mass fraction
     gamma = 5.0 / 3.0  # the adiabatic index
     KB = 1.3807e-16  # the Boltzmann constant in CGS units  [cm^2 g s^-2 K^-1]
@@ -20,7 +22,9 @@ def temp(sim) -> SimArray:
     mu = (4 * mp) / (1 + 3 * XH + 4 * XH * Xe)
 
     temp = (gamma - 1) * (internalenergy / KB) * mu * 1e10
-    temp = temp * units.k
+    temp = SimArray(temp)
+    temp.units = units.K
+    temp.sim = sim
 
     return temp
 
