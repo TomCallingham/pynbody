@@ -64,21 +64,14 @@ class ZoomSnap:
         os.makedirs(analysis_folder)
 
     def _init_lazy_orientation(self):
-        """must be run after others!"""
         if not self.orientate:
             return
-        self.orientation
-        assert hasattr(self, "_translate_array_name")
-        self._translate_array_name._pynbody_to_format_map["raw_pos"] = ["Coordinates"]
-        self._translate_array_name._pynbody_to_format_map["raw_vel"] = ["Velocities"]
-        self._translate_array_name._pynbody_to_all_format_map["raw_vel"] = ["Velocities"]
-        self._translate_array_name._pynbody_to_all_format_map["raw_pos"] = ["Coordinates"]
-        translate_pos_vel = {"pos": "raw_pos", "vel": "raw_vel"}
-        self._loadable_keys = [translate_pos_vel.get(key, key) for key in self._loadable_keys]
-        self._loadable_family_keys = {
-            famkey: [translate_pos_vel.get(key, key) for key in _loadable_keys]
-            for famkey, _loadable_keys in self._loadable_family_keys.items()
-        }
+        if "x_cen" in self.orientation:
+            self.translate(-self.orientation["x_cen"])
+        if "v_cen" in self.orientation:
+            self.offset_velocity(-self.orientation["v_cen"])
+        if "z_Rot" in self.orientation:
+            self.rotate(self.orientation["z_Rot"])
 
 
 # Needed to load zoom attributes
