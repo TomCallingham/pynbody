@@ -170,7 +170,7 @@ Possible reasons include that the transformation has already been reverted, or t
         """Deprecated alias for :meth:`rotate`."""
         return self.rotate(matrix)
 
-    def apply_transformation_to_array(self, array_name, family=None):
+    def apply_transformation_to_array(self, array_name, family=None, sim=None):
         """Apply the current transformation to an array.
 
         This is used internally by the snapshot class to ensure that arrays are transformed
@@ -186,7 +186,7 @@ Possible reasons include that the transformation has already been reverted, or t
         """
 
         for transform in self._transformations:
-            transform.apply_transformation_to_array(array_name, family)
+            transform.apply_transformation_to_array(array_name, family, sim=sim)
 
 
 class Transformation(Transformable, abc.ABC):
@@ -326,14 +326,15 @@ class Transformation(Transformable, abc.ABC):
             transformation._reverted = True
             transformation = transformation._previous_transformation
 
-    def apply_transformation_to_array(self, array_name, family):
+    def apply_transformation_to_array(self, array_name, family=None, sim=None) -> None:
         if self._previous_transformation is not None:
-            self._previous_transformation.apply_transformation_to_array(array_name, family)
+            self._previous_transformation.apply_transformation_to_array(array_name, family, sim)
 
+        sim = sim if sim is not None else self.sim
         if family is not None:
-            array = self.sim._get_family_array(array_name, family)
+            array = sim._get_family_array(array_name, family)
         else:
-            array = self.sim._get_array(array_name)
+            array = sim._get_array(array_name)
 
         self._apply_to_array(array)
 
