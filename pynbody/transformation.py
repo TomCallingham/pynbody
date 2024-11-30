@@ -409,16 +409,11 @@ class GenericTranslation(Transformation):
         super().__init__(f, description=description)
 
     def _apply_to_array(self, array):
-        # Added ndim, "x","y","z" hav array names pos!
-        if array.name == self.arname and (
-            self.shift.size == 1 or (len(array.shape) > 1 and array.shape[1] == self.shift.size)
-        ):
+        if array._name == self.arname:
             array += self.shift
 
     def _unapply_to_array(self, array):
-        if array.name == self.arname and (
-            self.shift.size == 1 or (len(array.shape) > 1 and array.shape[1] == self.shift.size)
-        ):
+        if array._name == self.arname:
             array -= self.shift
 
 

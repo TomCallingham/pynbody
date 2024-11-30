@@ -1777,3 +1777,11 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     def derived_quantity(cls, fn):
         """Deprecated alias for :meth:`derived_array`"""
         return cls.derived_array(fn)
+
+    def iord_select(self, iord_array) -> subsnap.SubSnap:
+        from . import subsnap
+
+        if self.hierarchy is False:
+            return subsnap.IndexedSubSnap(self, iord_array=iord_array)
+        else:
+            return subsnap.HierarchyIndexedSubSnap(self, iord_array=iord_array)

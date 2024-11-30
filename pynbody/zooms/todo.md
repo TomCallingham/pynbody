@@ -1,6 +1,3 @@
-- Why Orientate with Gas?
-- Is cache necessary? Probably not, cleaner to drop
-- Hierarchical Arrays are a bit hacky, bound to be bugs
-
+- Cached Orientation on subs
 
 Note: Added AurigaRead Branch. Only push when functional!
