@@ -295,7 +295,7 @@ class IndexingViewMixin:
         iord_base = self._subsnap_base["iord"].v
         iord_base_argsort = self._subsnap_base["iord_argsort"].v
 
-        dtype = np.int64
+        dtype = np.uint64
         iord = np.ascontiguousarray(iord, dtype)
         iord_base = np.ascontiguousarray(iord_base, dtype)
         iord_base_argsort = np.ascontiguousarray(iord_base_argsort, dtype)

@@ -12,8 +12,10 @@ def get_fill_val(dtype):
         fill_val = -1
     elif np.issubdtype(dtype, np.unsignedinteger):
         fill_val = 0
+    elif np.issubdtype(dtype, np.bool):
+        fill_val = False
     else:
-        raise TypeError("Unknown dtype value?")
+        raise TypeError(f"Unknown dtype value {dtype}?")
     return fill_val
 
 

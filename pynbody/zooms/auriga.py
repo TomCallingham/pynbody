@@ -2,8 +2,10 @@ from ..halo.subfindhdf import ArepoSubfindHDFCatalogue
 from ..snapshot.gadgethdf import GadgetHDFSnap, _GadgetHdfMultiFileManager
 from ..halo import Halo, HierarchicalHalo
 from ..snapshot import IndexedSubSnap
+from ..snapshot.subsnap import HierarchyIndexedSubSnap
 from .. import units
 import numpy as np
+from typing import Literal
 
 from .zoom import ZoomSnap
 
@@ -16,28 +18,28 @@ class AurigaStarsWind:
         self._winds = None
 
     @property
-    def stars(self) -> IndexedSubSnap:
+    def stars(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
         if self._stars is None:
             stars = self.s  # pyright: ignore
             self._stars = stars[stars["aform"] > 0]
         return self._stars
 
     @property
-    def star(self) -> IndexedSubSnap:
+    def star(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
         if self._stars is None:
             stars = self.s  # pyright: ignore
             self._stars = stars[stars["aform"] > 0]
         return self._stars
 
     @property
-    def winds(self) -> IndexedSubSnap:
+    def winds(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
         if self._winds is None:
             stars = self.s  # pyright: ignore
             self._winds = stars[stars["aform"] < 0]
         return self._winds
 
     @property
-    def wind(self) -> IndexedSubSnap:
+    def wind(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
         if self._winds is None:
             stars = self.s  # pyright: ignore
             self._winds = stars[stars["aform"] < 0]
@@ -110,15 +112,22 @@ class AurigaLikeHDFSnap(ZoomSnap, GadgetHDFSnap, AurigaStarsWind):
 
     _readable_hdf5_test_key = "PartType1/SubGroupNumber"
     _namemapper_config_section = "auriga-name-mapping"
-    # _multifile_manager_class = _GadgetHdfMultiFileManager
 
-    def __init__(self, particle_filename, halo_filename, analysis_folder, level=4, orientate=True, use_cache=False):
+    def __init__(
+        self,
+        particle_filename: str,
+        halo_filename: str,
+        analysis_folder: str | None = None,
+        orientate_center: None | int | dict = 0,
+        pot_symmetry: Literal["axi", "spherical"] = "axi",
+        level=4,
+    ):
         GadgetHDFSnap.__init__(self, particle_filename)
         self.halo_file = halo_filename
         self.properties["eps"] = auriga_eps.get(level)
         AurigaStarsWind.__init__(self)
         self.physical_units()
-        ZoomSnap.__init__(self, orientate, use_cache=use_cache, analysis_folder=analysis_folder)
+        ZoomSnap.__init__(self, analysis_folder, orientate_center, pot_symmetry)
 
         self.forcefloat64 = True
         self._mass_dtype = np.float64
