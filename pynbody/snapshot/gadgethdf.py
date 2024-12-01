@@ -26,6 +26,7 @@ import numpy as np
 from .. import config_parser, family, units, util
 from . import SimSnap, namemapper
 
+
 logger = logging.getLogger("pynbody.snapshot.gadgethdf")
 
 import h5py
@@ -547,6 +548,15 @@ class GadgetHDFSnap(SimSnap):
     def _load_array_filtered(self, array_name, target, fam=None):
         if not self._family_has_loadable_array(fam, array_name):
             raise OSError("No such array on disk")
+        if not target._filt_load_helper:
+            # target._filt_load_helper = self._filt_load_init(target)
+            self._filt_load_init(target)
+        # load_helper  = target._filt_load_helper
+
+        read_index = target.read_index
+        sort_index = target.sort_index
+        sorting = isinstance(sort_index, np.ndarray)
+
         translated_names = self._translate_array_name(array_name)
         dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
         dtype = self._mass_dtype if array_name == "mass" else dtype
@@ -561,7 +571,7 @@ class GadgetHDFSnap(SimSnap):
         else:
             full_target_array.set_default_units()
 
-        indexes = target.ancestors_index[target.ancestor]
+        indexes = target.ancestors_index[target.ancestor] if read_index is None else read_index
 
         for loading_fam in all_fams_to_load:
             fam_slice = target._get_family_slice(loading_fam)
@@ -607,6 +617,24 @@ class GadgetHDFSnap(SimSnap):
 
                 i0 = i1
                 my_i0 = my_i1
+        if sorting:
+            full_target_array[:] = full_target_array[sort_index]
+
+    def _filt_load_init(self, target) -> None:
+        # TODO: Pre calculate some of the book keeping, rather than finding each time?
+        #
+        """Checks no negative indexes, sorted vs unsorted"""
+        target.read_index = target.ancestors_index[target.ancestor]
+        if np.min(target.read_index < 0):
+            # Only relevant if coming from main
+            target.read_index[target.read_index < 0] += len(target._subsnapbase)
+        target.sort_index = None
+        # TODO: use util.is_sorted
+        if util.is_sorted(target.read_index) != 1:
+            ind_argsort = np.argsort(target.read_index)
+            target.read_index = target.read_index[ind_argsort]
+            target.sort_index = np.argsort(ind_argsort)
+        target._filt_load_helper = True
 
     def __get_dtype_dims_and_units(self, fam, translated_names):
         if fam is None:

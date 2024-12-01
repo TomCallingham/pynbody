@@ -1,10 +1,7 @@
 import numpy as np
 from .. import units
 from ..array import SimArray
-
-from .orientation import single_rotation
 from .zoom import ZoomSnap
-from .property_cache import cache_prop
 from .zoom_utils import top_hierarchy_family, multiple_read
 
 kms = units.km / units.s
@@ -35,7 +32,6 @@ def group_id(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def U(sim) -> SimArray:
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
     pot = base.potential
@@ -46,7 +42,6 @@ def U(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def E(sim) -> SimArray:
     return sim["U"] + sim["ke"]
 
@@ -79,14 +74,12 @@ def calc_peri_apo(sim) -> dict[str, SimArray]:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def peri(sim) -> SimArray:
     extreme_dict = calc_peri_apo(sim)
     return multiple_read(sim, extreme_dict, read_key="peri")
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def apo(sim) -> SimArray:
     extreme_dict = calc_peri_apo(sim)
     return multiple_read(sim, extreme_dict, read_key="apo")
@@ -117,14 +110,12 @@ def RcircL(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def circ(sim) -> SimArray:
     circ = sim["jz"] / sim["Lcirc_E"]
     return circ
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def Tcirc(sim) -> SimArray:
     base = sim.ancestor if hasattr(sim, "ancestor") else sim
     pot = base.potential
@@ -159,7 +150,6 @@ def Lcirc_E(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def JR(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -168,7 +158,6 @@ def JR(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def Jz(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -177,7 +166,6 @@ def Jz(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def Jphi(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -186,7 +174,6 @@ def Jphi(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def AR(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -195,7 +182,6 @@ def AR(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def Az(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -204,7 +190,6 @@ def Az(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def Aphi(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -213,7 +198,6 @@ def Aphi(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def OR(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -222,7 +206,6 @@ def OR(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def Oz(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 
@@ -231,7 +214,6 @@ def Oz(sim) -> SimArray:
 
 
 @ZoomSnap.derived_array
-@cache_prop
 def Ophi(sim) -> SimArray:
     from .agama_potential import calc_action_angles
 

@@ -6,35 +6,31 @@ import numpy as np
 import h5py
 
 
-def load_orientation(sim_snap, extra: str | None = None) -> dict[str, np.ndarray]:
-    folder = sim_snap.analysis_folder
-    fname = f"{folder}pynbody_orientation.hdf5" if extra is None else f"{folder}pynbody_orientation_{extra}.hdf5"
+def load_orientation(Sim, sub_id: int = 0) -> dict[str, np.ndarray]:
+    fname = f"{Sim.analysis_folder}pynbody_orientation_{Sim.orientation_name}.hdf5"
+    old_fname = f"{Sim.analysis_folder}pynbody_orientation.hdf5"
     if os.path.isfile(fname):
-        with h5py.File(fname, "r") as hf:
-            orientation_dic = {p: np.asarray(hf[p][:]) for p in hf.keys()}  # type: ignore
+        with h5py.File(fname) as hf:
+            orientation_dic = {p: np.asarray(hf[p][:]) for p in hf.keys()}
+    elif sub_id == 0 and os.path.isfile(old_fname):
+        print("Found old orientation, renaming!")
+        os.rename(old_fname, fname)
+        return load_orientation(Sim, sub_id=sub_id)
     else:
         print("creating orienation")
-        orientation_dic = calc_apply_pynbody_orientation(sim_snap)
+        orientation_dic = calc_apply_pynbody_orientation(Sim, sub_id)
         print("Saving orientaiton")
-        save_pynbody_orientation(folder, orientation_dic)
+        save_pynbody_orientation(fname, orientation_dic)
 
     return orientation_dic
 
 
-def check_z_Rot(matrix: np.ndarray) -> None:
-    ortho_tol = 1.0e-8
-    resid = np.dot(matrix, np.asarray(matrix).T) - np.eye(3)
-    resid = (resid**2).sum()
-    if resid > ortho_tol:
-        raise ValueError("Transformation matrix is not orthogonal")
-
-
-def calc_apply_pynbody_orientation(sim_snap, cen_size: str = "1 kpc", disk_size: str = "5 kpc") -> dict:
+def calc_apply_pynbody_orientation(Sim, sub_id: int = 0, cen_size: str = "1 kpc", disk_size: str = "5 kpc") -> dict:
     """also orientates!"""
-    h0 = sim_snap.halos()[0]
-    print("Assuming main halo on group_id=0!")
+    print(f"Calculating orientation of Subhalo {sub_id}")
+    h0 = Sim.halos(subhalos=True)[sub_id]
     x_cen = analysis.halo.center(h0, retcen=True, cen_size=cen_size)
-    tx = transformation.inverse_translate(sim_snap, x_cen)
+    tx = transformation.inverse_translate(Sim, x_cen)
     v_cen = analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
     tx = transformation.inverse_v_translate(tx, v_cen)
     # Why Gas?
@@ -47,16 +43,8 @@ def calc_apply_pynbody_orientation(sim_snap, cen_size: str = "1 kpc", disk_size:
     return orientation
 
 
-def save_pynbody_orientation(folder, orientation) -> None:
-    fname = folder + "pynbody_orientation.hdf5"
+def save_pynbody_orientation(fname, orientation) -> None:
     with h5py.File(fname, "w") as hf:
         for p, x in orientation.items():
             hf.create_dataset(p, data=x)
     print("saved orientation")
-
-
-def single_rotation(matrix, array):
-    """Taken from pynbodies own Rotation translation"""
-    assert array.shape[1] == 3
-    array = np.dot(matrix, array.transpose()).transpose()
-    return array

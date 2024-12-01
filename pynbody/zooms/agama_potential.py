@@ -14,31 +14,58 @@ symmlabel = {"a": "axi", "s": "sph", "t": "triax", "n": "none"}
 action_angles_props = ["JR", "Jz", "Jphi", "AR", "Az", "Aphi", "OR", "Oz", "Ophi"]
 
 
-def agama_pynbody_load(self, symm="axi") -> agama.Potential:
-    f_sphere = self.analysis_folder + f"{symm}_sphere.coef_mul"
-    f_disc = self.analysis_folder + f"{symm}_disc.coef_cylsp"
-
-    if not os.path.isfile(f_sphere) or not os.path.isfile(f_disc):
-        print("No potential found, creating")
-        agama_pynbody_save(self, symm)
-
-    pot_sphere = agama.Potential(f_sphere)  # type:ignore
-    pot_disc = agama.Potential(f_disc)  # type:ignore
-    Pot = agama.Potential(pot_sphere, pot_disc)  # type:ignore
-    return Pot
+def agama_pynbody_load(Sim) -> agama.Potential:
+    symmetry = Sim.pot_symm
+    if symmetry == "axi":
+        return agama_pynbody_load_axi(Sim)
+    elif symmetry == "spherical":
+        return agama_pynbody_load_sph(Sim)
+    else:
+        raise KeyError(f"Potential symmetry not recognised: {symmetry}")
 
 
-def agama_pynbody_save(self, symm="axi") -> None:
-    f_sphere = self.analysis_folder + f"{symm}_sphere.coef_mul"
-    f_disc = self.analysis_folder + f"{symm}_disc.coef_cylsp"
+def agama_pynbody_load_axi(Sim) -> agama.Potential:
+    f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
+    f_disc = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_cylsp"
+
+    if os.path.isfile(f_sphere) or os.path.isfile(f_disc):
+        pot_sphere = agama.Potential(f_sphere)  # type:ignore
+        pot_disc = agama.Potential(f_disc)  # type:ignore
+        return agama.Potential(pot_sphere, pot_disc)  # type:ignore
+
+    old_f_sphere = Sim.analysis_folder + "axi_sphere.coef_mul"
+    old_f_disc = Sim.analysis_folder + "axi_disc.coef_cylsp"
+    if os.path.isfile(old_f_sphere) or os.path.isfile(old_f_disc) and Sim.orientate_center == 0:
+        print("Found old potentials, renaming!")
+        os.rename(old_f_sphere, f_sphere)
+        os.rename(old_f_disc, f_disc)
+        return agama_pynbody_load_axi(Sim)
+
+    print("No potential found, creating")
+    pot_sphere, pot_disc = agama_pynbody_save_axi(Sim)
+    return agama.Potential(pot_sphere, pot_disc)  # type:ignore
+
+
+def agama_pynbody_save_axi(Sim) -> tuple:
+    f_sphere = Sim.analysis_folder + "axi_sphere.coef_mul"
+    f_disc = Sim.analysis_folder + "axi_disc.coef_cylsp"
     print("Agama pynbody calc!")
-    pot_sphere, pot_disc = agama_pynbody_calc(self, symm="axi")
+    pot_sphere, pot_disc = agama_pynbody_calc_axi(Sim)
     pot_sphere.export(f_sphere)
     pot_disc.export(f_disc)
     print("Potentials Saved")
+    return pot_sphere, pot_disc
 
 
-def agama_pynbody_calc(self, symm="axi", rcut=500) -> tuple:
+def agama_pynbody_save_sph(Sim) -> None:
+    fname = Sim.analysis_folder + "sph.coef_mul"
+    print("Agama Spherical pynbody calc!")
+    pot = agama_pynbody_calc_sph(Sim)
+    pot.export(fname)
+    print("Potential Saved")
+
+
+def agama_pynbody_calc_axi(Sim, rcut=500) -> tuple:
     """
     Fits axisymmetric potential to main subhalo in sim
     constructs a hybrid two-component basis expansion model of the potential for Auriga.
@@ -48,9 +75,9 @@ def agama_pynbody_calc(self, symm="axi", rcut=500) -> tuple:
     Adapted from an example AGAMA script by Robyn Sanderson, with contributions from Andrew Wetzel, Eugene Vasiliev,
     by TomCallingham
     """
-    print(f"reading {self}")
+    print(f"reading {Sim}")
 
-    h0 = self.halos()[0].sub[0]
+    h0 = Sim.halos()[0].sub[0]
     Gas = h0.gas
     Stars = h0.stars
     DM = h0.dm
@@ -69,7 +96,7 @@ def agama_pynbody_calc(self, symm="axi", rcut=500) -> tuple:
 
     print("Computing multipole expansion coefficients for dark matter/hot gas component")
     pot_sphere = agama.Potential(
-        type="multipole", particles=(sphere_pos, sphere_mass), lmax=8, symmetry=symm, rmin=0.1, rmax=rcut
+        type="multipole", particles=(sphere_pos, sphere_mass), lmax=8, symmetry="axi", rmin=0.1, rmax=rcut
     )
 
     print("Computing cylindrical spline coefficients for stellar/cold gas component")
@@ -78,7 +105,7 @@ def agama_pynbody_calc(self, symm="axi", rcut=500) -> tuple:
         type="cylspline",
         particles=(disc_pos, disc_mass),
         mmax=8,
-        symmetry=symm,
+        symmetry="axi",
         gridsizer=40,
         gridsizez=40,
         rmin=0.1,
@@ -87,6 +114,20 @@ def agama_pynbody_calc(self, symm="axi", rcut=500) -> tuple:
     print("Potential Created")
 
     return pot_sphere, pot_disc
+
+
+def agama_pynbody_calc_sph(Sim, rcut=500) -> tuple:
+    """ """
+    print(f"reading {Sim}")
+
+    pos = Sim["pos"].v
+    mass = Sim["mass"].v
+
+    print("Computing Spherical Pot")
+    pot = agama.Potential(type="multipole", particles=(pos, mass), lmax=8, symmetry="sph", rmin=0.1, rmax=rcut)
+    print("Potential Created")
+
+    return pot
 
 
 def agama_vcirc(Rspace, pot) -> np.ndarray:
@@ -100,12 +141,11 @@ def calc_action_angles(sim, angles=True) -> dict:
     pos, vel = sim["pos"].v, sim["vel"].v
     xyz = np.column_stack((pos, vel))
 
-    base = sim.ancestor if hasattr(sim, "ancestor") else sim
-    pot = base.potential
+    pot = sim.ancestor.potential if hasattr(sim, "ancestor") else sim.potential
     J_finder = agama.ActionFinder(pot, interp=True)
     dyn = {}
     if angles:
-        print("Calculating Actions and Angles...")
+        print("Calculating Actions, Angles and Frequencies...")
         Js, As, Os = J_finder(xyz, angles=True)
         dyn["AR"], dyn["Az"], dyn["Aphi"] = As.T
         dyn["OR"], dyn["Oz"], dyn["Ophi"] = Os.T
