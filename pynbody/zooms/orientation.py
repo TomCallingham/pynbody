@@ -1,6 +1,4 @@
 import os
-
-# from .zoom import ZoomSnap
 from .. import analysis, filt, transformation
 import numpy as np
 import h5py
@@ -30,15 +28,15 @@ def calc_apply_pynbody_orientation(Sim, sub_id: int = 0, cen_size: str = "1 kpc"
     print(f"Calculating orientation of Subhalo {sub_id}")
     h0 = Sim.halos(subhalos=True)[sub_id]
     x_cen = analysis.halo.center(h0, retcen=True, cen_size=cen_size)
-    tx = transformation.inverse_translate(Sim, x_cen)
-    v_cen = analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
-    tx = transformation.inverse_v_translate(tx, v_cen)
-    # Why Gas?
-    # Use gas from inner 5kpc to calculate angular momentum vector
-    gas_central = h0.gas[filt.Sphere(disk_size)]
-    z_vec = analysis.angmom.ang_mom_vec(gas_central)
-    z_vec /= np.linalg.norm(z_vec)
-    z_Rot = analysis.angmom.calc_faceon_matrix(z_vec)
+    with transformation.inverse_translate(Sim, x_cen):
+        v_cen = analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)
+        with transformation.inverse_v_translate(Sim, v_cen):
+            # Why Gas?
+            # Use gas from inner 5kpc to calculate angular momentum vector
+            gas_central = h0.gas[filt.Sphere(disk_size)]
+            z_vec = analysis.angmom.ang_mom_vec(gas_central)
+            z_vec /= np.linalg.norm(z_vec)
+            z_Rot = analysis.angmom.calc_faceon_matrix(z_vec)
     orientation = {"x_cen": x_cen, "v_cen": v_cen, "z_Rot": z_Rot}
     return orientation
 
