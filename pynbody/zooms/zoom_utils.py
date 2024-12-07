@@ -80,6 +80,10 @@ def match_saved_sorted(sim, saved_data, load_keys=None, p_id_key="iord") -> dict
         for xkey in load_keys:
             data[xkey][p_indexes] = saved_data[fam_str][xkey][z_match]
 
+    for xkey in load_keys:
+        data[xkey] = data[xkey].view(SimArray)
+        data[xkey].sim = SimArray
+
     return data
 
 
@@ -100,3 +104,10 @@ def multiple_read(sim, data_dict: dict[str, SimArray], read_key: str) -> SimArra
             base._family_arrays[p] = {fam: data_dict[p]}
 
     return data_dict[read_key]
+
+
+def add_dic_data(Sim, data_dic, load_keys, p_id_key):
+    matched_stars_peri_data = match_saved_sorted(Sim, data_dic, load_keys, p_id_key)
+    for key, x in matched_stars_peri_data.items():
+        Sim[key] = x
+    return Sim
