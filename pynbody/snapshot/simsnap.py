@@ -1781,7 +1781,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
     def iord_select(self, iord_array) -> subsnap.SubSnap:
         from . import subsnap
 
-        if self.hierarchy is False:
-            return subsnap.IndexedSubSnap(self, iord_array=iord_array)
-        else:
+        if hasattr(self, "hierarchy") and self.hierarchy:
             return subsnap.HierarchyIndexedSubSnap(self, iord_array=iord_array)
+        else:
+            return subsnap.IndexedSubSnap(self, iord_array=iord_array)

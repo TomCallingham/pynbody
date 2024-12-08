@@ -59,7 +59,8 @@ class ContainerWithPhysicalUnitsOption:
         if dims is None:
             return
 
-        if ar.units is None or isinstance(ar.units, units.NoUnit):
+        if not hasattr(ar, "units") or ar.units is None or isinstance(ar.units, units.NoUnit):
+            # fix for argsort
             return
 
         # TCall: Added try/except to fix error with fundamental temperature units?

@@ -88,11 +88,19 @@ def agama_pynbody_calc_axi(Sim, rcut=500) -> tuple:
     hot_gas_filt = np.invert(cold_gas_filt)
 
     # combine components that will be fed to the cylspline part
-    disc_pos = np.vstack((Stars["pos"].v, Gas["pos"].v[cold_gas_filt]))
-    disc_mass = np.hstack((Stars["mass"].v, Gas["mass"].v[cold_gas_filt]))
+    if len(Stars) > 0:
+        disc_pos = np.vstack((Stars["pos"].v, Gas["pos"].v[cold_gas_filt]))
+        disc_mass = np.hstack((Stars["mass"].v, Gas["mass"].v[cold_gas_filt]))
+    else:
+        disc_pos = Gas["pos"].v[cold_gas_filt]
+        disc_mass = Gas["mass"].v[cold_gas_filt]
     # combine components that will be fed to the multipol part
-    sphere_pos = np.vstack((DM["pos"].v, Gas["pos"].v[hot_gas_filt], Wind["pos"].v))
-    sphere_mass = np.hstack((DM["mass"].v, Gas["mass"].v[hot_gas_filt], Wind["mass"].v))
+    if len(Wind) > 0:
+        sphere_pos = np.vstack((DM["pos"].v, Gas["pos"].v[hot_gas_filt], Wind["pos"].v))
+        sphere_mass = np.hstack((DM["mass"].v, Gas["mass"].v[hot_gas_filt], Wind["mass"].v))
+    else:
+        sphere_pos = np.vstack((DM["pos"].v, Gas["pos"].v[hot_gas_filt]))
+        sphere_mass = np.hstack((DM["mass"].v, Gas["mass"].v[hot_gas_filt]))
 
     print("Computing multipole expansion coefficients for dark matter/hot gas component")
     pot_sphere = agama.Potential(

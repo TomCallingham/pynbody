@@ -245,6 +245,7 @@ class IndexingViewMixin:
         if index_array is not None and iord_array is not None:
             # typo, without -> with
             raise ValueError("Cannot define a subsnap with both and index_array and iord_array.")
+
         if iord_array is not None:
             index_array = self._iord_to_index(iord_array)
 
@@ -290,15 +291,23 @@ class IndexingViewMixin:
     def _iord_to_index(self, iord):
         # Maps iord to indices. Note that this requires to perform an argsort (O(N log N) operations)
         # and a binary search (O(M log N) operations) with M = len(iord) and N = len(self._subsnap_base).
+        #
 
         # Find index of particles using a search sort
         iord_base = self._subsnap_base["iord"].v
-        iord_base_argsort = self._subsnap_base["iord_argsort"].v
+        # Strange error, iord_argsort failing if load from ?
+        # iord_base_argsort = self._subsnap_base["iord_argsort"].v
+        iord_base_argsort = np.argsort(iord_base)
 
         dtype = np.int64
         iord = np.ascontiguousarray(iord, dtype)
         iord_base = np.ascontiguousarray(iord_base, dtype)
         iord_base_argsort = np.ascontiguousarray(iord_base_argsort, dtype)
+
+        # print("Expensive numpy check sorted?")
+        # if (iord[1:] < iord[:-1]).any():
+        #     raise Exception("Expected iord to be sorted in increasing order.")
+        # return
 
         if not util.is_sorted(iord) == 1:
             raise Exception("Expected iord to be sorted in increasing order.")
