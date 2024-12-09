@@ -339,4 +339,5 @@ def tform(self):
 @SimSnap.derived_array
 def iord_argsort(self):
     """Indices so that particles are ordered by increasing ids"""
-    return SimArray(np.argsort(self["iord"]))
+    # return SimArray(np.argsort(self["iord"]))
+    return np.argsort(self["iord"].view(np.ndarray))
