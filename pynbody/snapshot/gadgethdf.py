@@ -38,6 +38,9 @@ for x in family.family_names():
             q.strip() for q in config_parser.get("gadgethdf-type-mapping", x).split(",")
         ]
 
+print("_default_type_map")
+print(_default_type_map)
+
 _all_hdf_particle_groups = []
 for hdf_groups in _default_type_map.values():
     for hdf_group in hdf_groups:
@@ -331,7 +334,7 @@ class GadgetHDFSnap(SimSnap):
             i0 = 0
             target_array = self[writing_fam][array_name]
             for hdf in self._all_hdf_groups_in_family(writing_fam):
-                npart = hdf["ParticleIDs"].size
+                npart = hdf[self._size_from_hdf5_key].size
                 i1 = i0 + npart
                 target_array_this = target_array[i0:i1]
 
@@ -526,7 +529,7 @@ class GadgetHDFSnap(SimSnap):
             fam_target_array = self[loading_fam][array_name]
             i0 = 0
             for hdf in self._all_hdf_groups_in_family(loading_fam):
-                npart = hdf["ParticleIDs"].size
+                npart = hdf[self._size_from_hdf5_key].size
                 if npart == 0:
                     continue
                 i1 = i0 + npart
@@ -575,6 +578,27 @@ class GadgetHDFSnap(SimSnap):
 
         for loading_fam in all_fams_to_load:
             fam_slice = target._get_family_slice(loading_fam)
+            set_array = full_target_array[fam_slice]
+
+            # Get Load Name, check if mass from table
+            translated_name = None
+            hdf = next(self._all_hdf_groups_in_family(loading_fam))
+            hdf_keys = list(hdf.keys())
+            translated_name_list = [name for name in translated_names if name in hdf_keys]
+
+            if len(translated_name_list) == 0:
+                for translated_name in translated_names:
+                    if self._translate_array_name(translated_name, reverse=True) == "mass":
+                        try:
+                            pgid = int(hdf.name[-1])
+                            mtab = hdf.parent["Header"].attrs["MassTable"][pgid]
+                            if mtab > 0:
+                                set_array[:] = mtab
+                        except (IndexError, KeyError):
+                            pass
+                continue
+            translated_name = translated_name_list[0]
+
             fam_indexes = indexes[fam_slice] - self._family_slice[loading_fam].start
             # TODO: Update _family_indices to actually match?
             # fam_indexes =target._family_indices[loading_fam]
@@ -584,11 +608,8 @@ class GadgetHDFSnap(SimSnap):
             my_i0 = 0  # position with hierarchical array
             my_i1 = 0
 
-            set_array = full_target_array[fam_slice]
-
-            dataset = np.array([])
             for hdf in self._all_hdf_groups_in_family(loading_fam):
-                npart = hdf["ParticleIDs"].size
+                npart = hdf[self._size_from_hdf5_key].size
                 if npart == 0:
                     continue
                 i1 = i0 + npart
@@ -604,19 +625,19 @@ class GadgetHDFSnap(SimSnap):
                     i0 = i1
                     continue
 
-                for translated_name in translated_names:
-                    try:
-                        dataset = self._get_hdf_dataset(hdf, translated_name)
-                    except KeyError:
-                        continue
+                dataset = hdf[translated_name]
 
-                # It seems to be faster to load it in small, then filter
-                data = np.asarray(dataset[:])
-                data_indexes = fam_indexes[my_i0:my_i1] - i0
-                set_array[my_i0:my_i1] = data[data_indexes]
-
+                my_npart = my_i1 - my_i0
+                if my_npart == npart:
+                    set_array[my_i0:my_i1] = np.asarray(dataset[:])
+                else:
+                    ind_min = fam_indexes[my_i0] - i0
+                    ind_max = fam_indexes[my_i1 - 1] + 1 - i0
+                    data_indexes = fam_indexes[my_i0:my_i1] - fam_indexes[my_i0]
+                    set_array[my_i0:my_i1] = np.asarray(dataset[ind_min:ind_max])[data_indexes]
                 i0 = i1
                 my_i0 = my_i1
+
         if sorting:
             full_target_array[:] = full_target_array[sort_index]
 
@@ -629,7 +650,6 @@ class GadgetHDFSnap(SimSnap):
             # Only relevant if coming from main
             target.read_index[target.read_index < 0] += len(target._subsnapbase)
         target.sort_index = None
-        # TODO: use util.is_sorted
         if util.is_sorted(target.read_index) != 1:
             ind_argsort = np.argsort(target.read_index)
             target.read_index = target.read_index[ind_argsort]
@@ -679,7 +699,7 @@ class GadgetHDFSnap(SimSnap):
         # Some versions of gadget fold the 3D arrays into 1D.
         # So check if the dimensions make sense -- if not, assume we're looking at an array that
         # is 3D and cross your fingers
-        npart = len(representative_hdf[self._family_to_group_map[fam][0]]["ParticleIDs"])
+        npart = len(representative_hdf[self._family_to_group_map[fam][0]][self._size_from_hdf5_key])
 
         if len(representative_dset) != npart:
             dy = len(representative_dset) // npart
