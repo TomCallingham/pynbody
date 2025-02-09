@@ -304,11 +304,6 @@ class IndexingViewMixin:
         iord_base = np.ascontiguousarray(iord_base, dtype)
         iord_base_argsort = np.ascontiguousarray(iord_base_argsort, dtype)
 
-        # print("Expensive numpy check sorted?")
-        # if (iord[1:] < iord[:-1]).any():
-        #     raise Exception("Expected iord to be sorted in increasing order.")
-        # return
-
         if not util.is_sorted(iord) == 1:
             raise Exception("Expected iord to be sorted in increasing order.")
 
@@ -562,7 +557,7 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
     #     print("setting master!")
     #     self.master = True
 
-    def keys(self):
+    def keys(self) -> list:
         return list(self._arrays.keys()) + list(self._ancestors_of_arrays.keys())
 
     def _derive_array(self, array_name, fam=None):
