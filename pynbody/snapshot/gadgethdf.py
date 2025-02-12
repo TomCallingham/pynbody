@@ -38,9 +38,6 @@ for x in family.family_names():
             q.strip() for q in config_parser.get("gadgethdf-type-mapping", x).split(",")
         ]
 
-print("_default_type_map")
-print(_default_type_map)
-
 _all_hdf_particle_groups = []
 for hdf_groups in _default_type_map.values():
     for hdf_group in hdf_groups:
