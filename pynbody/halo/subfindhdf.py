@@ -120,15 +120,17 @@ class SubFindHDFHaloCatalogue(HaloCatalogue):
         self.sim = sim
         self.filename = filename
 
+    @property
     def _subhalo_catalogue(self):
-        if not self._sub_mode:
+        if self._sub_mode:
+            # Subhalos do not have a subcatalogue!
             return None
         return type(self)(self.sim, subhalos=True, filename=self.filename, _inherit_data_from=self)
 
     def __inherit_data(self, parent):
         attrs_to_share = [
-            "_fof_properties",
-            "_sub_properties",
+            "__fof_properties",
+            "__sub_properties",
             "_fof_group_offsets",
             "_fof_group_lengths",
             "_subfind_halo_offsets",
@@ -140,7 +142,8 @@ class SubFindHDFHaloCatalogue(HaloCatalogue):
             "_nsubhalos",
         ]
         for attr in attrs_to_share:
-            setattr(self, attr, getattr(parent, attr))
+            if hasattr(parent, attr):
+                setattr(self, attr, getattr(parent, attr))
 
     def _get_catalogue_multifile(self, sim, user_provided_filename):
         """Some variants of Subfind put all the particle data in the catalogue files, in which case the catalogue

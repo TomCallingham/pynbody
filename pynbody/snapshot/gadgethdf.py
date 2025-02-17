@@ -163,6 +163,11 @@ class GadgetHDFSnap(SimSnap):
     _size_from_hdf5_key = "ParticleIDs"
     _namemapper_config_section = "gadgethdf-name-mapping"
 
+    _velocity_unit_key = "UnitVelocity_in_cm_per_s"
+    _length_unit_key = "UnitLength_in_cm"
+    _mass_unit_key = "UnitMass_in_g"
+    _time_unit_key = "UnitTime_in_s"
+
     def __init__(self, filename):
         """Initialise a Gadget HDF snapshot.
 
@@ -418,7 +423,8 @@ class GadgetHDFSnap(SimSnap):
         elif "length_scaling" in hdfattrs:
             return self._get_units_from_hdf_attr_arepo_style(hdfattrs)
         else:
-            warnings.warn("Unable to infer units from HDF attributes")
+            # Annoying warning
+            # warnings.warn("Unable to infer units from HDF attributes")
             return units.NoUnit()
 
     def _get_units_from_hdf_attr_gadget_style(self, hdfattrs):
@@ -708,12 +714,18 @@ class GadgetHDFSnap(SimSnap):
             dtype = np.float64
         return dtype, dy, inferred_units
 
-    _velocity_unit_key = "UnitVelocity_in_cm_per_s"
-    _length_unit_key = "UnitLength_in_cm"
-    _mass_unit_key = "UnitMass_in_g"
-    _time_unit_key = "UnitTime_in_s"
+    def _set_default_gadget_units(self):
+        vel_unit = config_parser.get("gadget-units", "vel")
+        dist_unit = config_parser.get("gadget-units", "pos")
+        mass_unit = config_parser.get("gadget-units", "mass")
+        self._file_units_system = [units.Unit(x) for x in [vel_unit, dist_unit, mass_unit, "K"]]
 
     def _init_unit_information(self):
+        if hasattr(self, "_file_units_system_default") and self._file_units_system_default is True:
+            # Choose default units, Auriga
+            self._set_default_gadget_units()
+            return
+
         try:
             atr = self._hdf_files.get_unit_attrs()
         except KeyError:
@@ -723,10 +735,7 @@ class GadgetHDFSnap(SimSnap):
                 warnings.warn(
                     "No unit information found in GadgetHDF file. Using gadget default units.", RuntimeWarning
                 )
-                vel_unit = config_parser.get("gadget-units", "vel")
-                dist_unit = config_parser.get("gadget-units", "pos")
-                mass_unit = config_parser.get("gadget-units", "mass")
-                self._file_units_system = [units.Unit(x) for x in [vel_unit, dist_unit, mass_unit, "K"]]
+                self._set_default_gadget_units()
                 return
 
         # Define the SubFind units, we will parse the attribute VarDescriptions for these

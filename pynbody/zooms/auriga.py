@@ -122,6 +122,8 @@ class AurigaLikeHDFSnap(ZoomSnap, GadgetHDFSnap, AurigaStarsWind):
         pot_symmetry: Literal["axi", "spherical"] = "axi",
         level=4,
     ):
+        # self._set_default_gadget_units()
+        self._file_units_system_default = True
         GadgetHDFSnap.__init__(self, particle_filename)
         self.halo_file = halo_filename
         self.properties["eps"] = auriga_eps.get(level)
