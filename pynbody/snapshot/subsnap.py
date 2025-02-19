@@ -48,7 +48,7 @@ class ExposedBaseSnapshotMixin:
                     continue
                 subfunc = getattr(self.ancestor, x)
 
-                def my_subfunc(*args, **kwargs):
+                def my_subfunc(*args, subfunc=subfunc, **kwargs):
                     return subfunc(*args, **kwargs, subsnap=self)
 
                 my_subfunc.__doc__ = subfunc.__doc__
