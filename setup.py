@@ -147,16 +147,15 @@ install_requires = [
 ]
 
 tests_require = [
-    'pytest','pandas','camb','extinction',"IPython",'healpy'
+    'pytest','pandas','camb',"IPython",'healpy'
 ]
 
 docs_require = [
     'ipython>=3',
-    'Sphinx>=7',
+    'Sphinx>=7,<8.2.0', #<8.2.0 due to nbsphinx compatibility issue (cf https://github.com/rapidsai/build-planning/issues/155)
     'sphinx-book-theme',
     'sphinx-copybutton',
     'numpydoc',
-    'extinction',
     'nbsphinx',
     'camb'
 ],
@@ -196,7 +195,7 @@ setup(name = 'pynbody',
                                          'cambtemplate.ini'],
                     'pynbody/plot': ['tollerud2008mw']},
       ext_modules = ext_modules,
-      classifiers = ["Development Status :: 4 - Beta",
+      classifiers = ["Development Status :: 5 - Production/Stable",
                      "Intended Audience :: Developers",
                      "Intended Audience :: Science/Research",
                      "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
@@ -207,7 +206,7 @@ setup(name = 'pynbody',
       install_requires=install_requires,
       tests_require=tests_require,
       extras_require=extras_require,
-      python_requires='>=3.10',
+      python_requires='>=3.11',
       long_description=long_description,
       long_description_content_type='text/markdown'
       )
