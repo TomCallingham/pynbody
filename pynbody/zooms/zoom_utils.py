@@ -76,11 +76,6 @@ def match_saved_sorted(sim, saved_data, load_keys=None, p_id_key="iord") -> dict
         pos[pos >= len(saved_ids)] = 0
         valid = saved_ids[pos] == p_ids
 
-        # pos = np.searchsorted(saved_ids, p_ids)
-        # mask = pos < len(saved_ids)
-        # valid = np.zeros(p_ids.shape, dtype=bool)
-        # valid[mask] = saved_ids[pos[mask]] == p_ids[mask]
-
         filt_B = np.nonzero(valid)[0]
         filt_A = pos[valid]
 

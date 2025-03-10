@@ -1,4 +1,3 @@
-from sys import orig_argv
 from typing import Literal
 from ..snapshot.simsnap import SimSnap
 
