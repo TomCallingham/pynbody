@@ -15,7 +15,6 @@ class ZoomSnap:
     ) -> None:
         """orientate_center: Where to center. Nothing, subhalo int, or own orientation,"""
         if not hasattr(self, "hierarchy"):
-            print("Zoom setting hierarchy!")
             self.hierarchy = True
 
         self.analysis_folder = analysis_folder
