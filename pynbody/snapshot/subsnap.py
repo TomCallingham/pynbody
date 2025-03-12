@@ -25,6 +25,7 @@ class ExposedBaseSnapshotMixin:
         "delay_promotion",
         # ME
         "hierarchy",
+        "_special_gettr_keys",
     ]
 
     def __init__(self, base: SimSnap, *args, **kwargs):
@@ -468,7 +469,7 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         self._inherit()
 
         self._arrays = {}
-        # self._family_arrays = {}  # NOTE: Needed, else orientation fails...
+        self._family_arrays = {}  # NOTE: Needed, else orientation fails...
         # self.ancestor_family=None
         #
         self._filt_load = True

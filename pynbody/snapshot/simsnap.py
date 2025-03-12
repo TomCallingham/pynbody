@@ -186,7 +186,8 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         self._file_units_system = []
 
         # ME   Determines if standard index array, or hierarchy arrays
-        self.hierarchy = False
+        # self.hierarchy = False
+        self._special_gettr_keys = None
 
     ############################################
     # THE BASICS: SIMPLE INFORMATION
@@ -260,15 +261,15 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         elif isinstance(i, np.ndarray) and np.issubdtype(np.bool_, i.dtype):
             return self._get_subsnap_from_mask_array(i)
         elif isinstance(i, (list, tuple, np.ndarray, filt.Filter)):
-            if self.hierarchy is False:
-                return subsnap.IndexedSubSnap(self, i)
-            else:
+            if self.hierarchy:
                 return subsnap.HierarchyIndexedSubSnap(self, i)
-        elif isinstance(i, int) or isinstance(i, np.int32) or isinstance(i, np.int64):
-            if self.hierarchy is False:
-                return subsnap.IndexedSubSnap(self, (i,))
             else:
+                return subsnap.IndexedSubSnap(self, i)
+        elif isinstance(i, int) or isinstance(i, np.int32) or isinstance(i, np.int64):
+            if self.hierarchy:
                 return subsnap.HierarchyIndexedSubSnap(self, (i,))
+            else:
+                return subsnap.IndexedSubSnap(self, (i,))
 
         raise TypeError
 
@@ -380,7 +381,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         return self._get_array(name)
 
     def __load_if_required(self, name):
-        # ME
+        # TC
         fam = self._unifamily if hasattr(self, "_unifamily") else None
         if name not in list(self.keys()):
             try:
@@ -454,6 +455,9 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 del v["_immediate_cache"]
 
     def __getattr__(self, name):
+        if self._special_gettr_keys is not None and name in self._special_gettr_keys:
+            return self.ancestor._special_getattr__(name, self)
+
         """This function overrides the behaviour of f.X where f is a SimSnap object.
 
         It serves two purposes; first, it provides the family-handling behaviour

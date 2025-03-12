@@ -885,13 +885,13 @@ def _consistent_units(*arrays, catch=None):
         sim = None
         allow_context = True
         for a in arrays:
-            if getattr(a, 'sim', None) is not None:
+            if getattr(a, "sim", None) is not None:
                 if sim is None:
                     sim = a.sim
                 elif sim is not a.sim:
-                    allow_context = False # don't allow context-based conversions if we have multiple sims (ambiguous)
+                    allow_context = False  # don't allow context-based conversions if we have multiple sims (ambiguous)
 
-        if allow_context and sim is not None :
+        if allow_context and sim is not None:
             conversion_context = sim.conversion_context()
         else:
             conversion_context = {}

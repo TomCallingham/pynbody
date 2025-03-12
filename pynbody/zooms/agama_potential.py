@@ -24,33 +24,31 @@ def agama_pynbody_load(Sim) -> agama.Potential:
         raise KeyError(f"Potential symmetry not recognised: {symmetry}")
 
 
-def agama_pynbody_load_axi(Sim) -> agama.Potential:
+def agama_pynbody_load_axi(Sim, sub_id: None | int = None) -> agama.Potential:
     f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
-    f_disc = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_cylsp"
+    f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
 
     if os.path.isfile(f_sphere) or os.path.isfile(f_disc):
         pot_sphere = agama.Potential(f_sphere)  # type:ignore
         pot_disc = agama.Potential(f_disc)  # type:ignore
         return agama.Potential(pot_sphere, pot_disc)  # type:ignore
 
-    old_f_sphere = Sim.analysis_folder + "axi_sphere.coef_mul"
-    old_f_disc = Sim.analysis_folder + "axi_disc.coef_cylsp"
-    if os.path.isfile(old_f_sphere) or os.path.isfile(old_f_disc) and Sim.orientate_center == 0:
-        print("Found old potentials, renaming!")
-        os.rename(old_f_sphere, f_sphere)
-        os.rename(old_f_disc, f_disc)
-        return agama_pynbody_load_axi(Sim)
-
     print("No potential found, creating")
-    pot_sphere, pot_disc = agama_pynbody_save_axi(Sim)
+    if sub_id is None:
+        try:
+            sub_id = int(Sim.orientation_name.split("_")[-1])
+        except Exception:
+            print("No sub_id found, using 0")
+            sub_id = 0
+    print(f"Using sub_id:{sub_id}")
+    pot_sphere, pot_disc = agama_pynbody_save_axi(Sim, sub_id=sub_id)
     return agama.Potential(pot_sphere, pot_disc)  # type:ignore
 
 
-def agama_pynbody_save_axi(Sim) -> tuple:
-    f_sphere = Sim.analysis_folder + "axi_sphere.coef_mul"
-    f_disc = Sim.analysis_folder + "axi_disc.coef_cylsp"
-    print("Agama pynbody calc!")
-    pot_sphere, pot_disc = agama_pynbody_calc_axi(Sim)
+def agama_pynbody_save_axi(Sim, sub_id=0) -> tuple:
+    f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
+    f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
+    pot_sphere, pot_disc = agama_pynbody_calc_axi(Sim, sub_id=sub_id)
     pot_sphere.export(f_sphere)
     pot_disc.export(f_disc)
     print("Potentials Saved")
@@ -65,9 +63,9 @@ def agama_pynbody_save_sph(Sim) -> None:
     print("Potential Saved")
 
 
-def agama_pynbody_calc_axi(Sim, rcut=500) -> tuple:
+def agama_pynbody_calc_axi(Sim, rcut: float = 500, sub_id: None | int = 0) -> tuple:
     """
-    Fits axisymmetric potential to main subhalo in sim
+    Fits axisymmetric potential to given Sim. Subhalo/Orientation should already be selected
     constructs a hybrid two-component basis expansion model of the potential for Auriga.
     dark matter and hot gas are represented by an expansion in spherical harmonics.
     remaining baryons (stars and cold gas) are represented by an azimuthal harmonic expansion in
@@ -75,13 +73,17 @@ def agama_pynbody_calc_axi(Sim, rcut=500) -> tuple:
     Adapted from an example AGAMA script by Robyn Sanderson, with contributions from Andrew Wetzel, Eugene Vasiliev,
     by TomCallingham
     """
-    print(f"reading {Sim}")
 
-    h0 = Sim.halos()[0].sub[0]
-    Gas = h0.gas
-    Stars = h0.stars
-    DM = h0.dm
-    Wind = h0.winds
+    if sub_id is not None:
+        print(f"Getting subhalo {sub_id}")
+        Sim = Sim.halos(subhalos=True)[sub_id]
+    Sim = Sim[Sim["r"] < rcut]
+    print(f"reading {Sim}")
+    Gas = Sim.gas
+    Stars = Sim.stars
+    DM = Sim.dm
+    # TODO: Auriga Specific with wind!
+    Wind = Sim.winds
     # separate cold gas in disk (modeled with cylspline) from hot gas in halo
     # (modeled with multipole)
     cold_gas_filt = np.log10(Gas["temp"].v) < 4.5
@@ -94,6 +96,7 @@ def agama_pynbody_calc_axi(Sim, rcut=500) -> tuple:
     else:
         disc_pos = Gas["pos"].v[cold_gas_filt]
         disc_mass = Gas["mass"].v[cold_gas_filt]
+
     # combine components that will be fed to the multipol part
     if len(Wind) > 0:
         sphere_pos = np.vstack((DM["pos"].v, Gas["pos"].v[hot_gas_filt], Wind["pos"].v))
@@ -124,7 +127,7 @@ def agama_pynbody_calc_axi(Sim, rcut=500) -> tuple:
     return pot_sphere, pot_disc
 
 
-def agama_pynbody_calc_sph(Sim, rcut=500) -> tuple:
+def agama_pynbody_calc_sph(Sim, rcut=500) -> agama.Potential:
     """ """
     print(f"reading {Sim}")
 

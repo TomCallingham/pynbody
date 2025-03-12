@@ -14,6 +14,9 @@ class ZoomSnap:
         pot_symmetry: Literal["axi", "spherical"] = "axi",
     ) -> None:
         """orientate_center: Where to center. Nothing, subhalo int, or own orientation,"""
+        if not hasattr(self, "hierarchy"):
+            print("Zoom setting hierarchy!")
+            self.hierarchy = True
 
         self.analysis_folder = analysis_folder
         self._check_analysis_folder(analysis_folder)
@@ -22,8 +25,6 @@ class ZoomSnap:
         self.pot_symm = pot_symmetry
         # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
-
-        self.hierarchy = False
 
     @cached_property
     def potential(self):  # -> agama.Potential:

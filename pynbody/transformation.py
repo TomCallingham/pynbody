@@ -163,6 +163,10 @@ Possible reasons include that the transformation has already been reverted, or t
         """
         return Rotation(self, matrix, description=description)
 
+    def zyx_order(self):
+        """changes zyx to xyz, present in some simulations"""
+        return ZYX_Order(self)
+
     @util.deprecated(
         "This method is deprecated and will be removed in a future version. Use the rotate method instead."
     )
@@ -467,6 +471,29 @@ class Rotation(Transformation):
     def _unapply_to_array(self, array):
         if len(array.shape) == 2 and array.shape[1] == 3 and (not array.derived):
             array[:] = np.dot(self.matrix.T, array.transpose()).transpose()
+
+
+class ZYX_Order(Transformation):
+    """Changes Order of ZYX"""
+
+    def __init__(self, f):
+        """Changes Order of pos and vel ZYX
+
+        Parameters
+        ----------
+        f : SimSnap
+            The simulation to act on
+
+        """
+        description = "ZYX"
+        super().__init__(f, description=description)
+
+    def _apply_to_array(self, array):
+        if array._name in ("pos", "vel") and len(array.shape) == 2:
+            array[:] = array[:, ::-1]
+
+    def _unapply_to_array(self, array):
+        self._apply_to_array(array)
 
 
 GenericRotation = Rotation  # name from pynbody v1

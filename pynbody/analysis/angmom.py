@@ -1,6 +1,5 @@
-"""Analysis involving angular momentum.
+"""Analysis involving angular momentum."""
 
-"""
 import logging
 
 import numpy as np
@@ -8,7 +7,7 @@ import numpy as np
 from .. import array, filt, transformation, units, util
 from . import halo
 
-logger = logging.getLogger('pynbody.analysis.angmom')
+logger = logging.getLogger("pynbody.analysis.angmom")
 
 
 def ang_mom_vec(snap):
@@ -29,10 +28,9 @@ def ang_mom_vec(snap):
 
     """
 
-    angmom = (snap['mass'].reshape((len(snap), 1)) *
-              np.cross(snap['pos'], snap['vel'])).sum(axis=0).view(np.ndarray)
+    angmom = (snap["mass"].reshape((len(snap), 1)) * np.cross(snap["pos"], snap["vel"])).sum(axis=0).view(np.ndarray)
     result = angmom.view(array.SimArray)
-    result.units = snap['mass'].units * snap['pos'].units * snap['vel'].units
+    result.units = snap["mass"].units * snap["pos"].units * snap["vel"].units
     return result
 
 
@@ -70,14 +68,13 @@ def spin_parameter(snap):
 
     """
 
-    m3 = snap['mass'].sum()
+    m3 = snap["mass"].sum()
     m3 = m3 * m3 * m3
-    l = np.sqrt(((ang_mom_vec_units(snap) ** 2).sum()) /
-                (2 * units.G * m3 * snap['r'].max()))
-    return float(l.in_units('1', **snap.conversion_context()))
+    l = np.sqrt(((ang_mom_vec_units(snap) ** 2).sum()) / (2 * units.G * m3 * snap["r"].max()))
+    return float(l.in_units("1", **snap.conversion_context()))
 
 
-def calc_sideon_matrix(angmom_vec, along = [1.0, 0.0, 0.0]):
+def calc_sideon_matrix(angmom_vec, along=[1.0, 0.0, 0.0]):
     """Calculate the rotation matrix to put the specified angular momentum vector side-on.
 
     The rotation matrix is calculated such that the angular momentum vector will be placed in the y direction
@@ -99,9 +96,9 @@ def calc_sideon_matrix(angmom_vec, along = [1.0, 0.0, 0.0]):
         The rotation matrix
     """
     vec_in = np.asarray(angmom_vec)
-    vec_in = vec_in / np.sum(vec_in ** 2).sum() ** 0.5
+    vec_in = vec_in / np.sum(vec_in**2).sum() ** 0.5
     vec_p1 = np.cross(along, vec_in)
-    vec_p1 = vec_p1 / np.sum(vec_p1 ** 2).sum() ** 0.5
+    vec_p1 = vec_p1 / np.sum(vec_p1**2).sum() ** 0.5
     vec_p2 = np.cross(vec_in, vec_p1)
 
     matr = np.concatenate((vec_p2, vec_in, vec_p1)).reshape((3, 3))
@@ -131,9 +128,9 @@ def calc_faceon_matrix(angmom_vec, up=[0.0, 1.0, 0.0]):
 
     """
     vec_in = np.asarray(angmom_vec)
-    vec_in = vec_in / np.sum(vec_in ** 2).sum() ** 0.5
+    vec_in = vec_in / np.sum(vec_in**2).sum() ** 0.5
     vec_p1 = np.cross(up, vec_in)
-    vec_p1 = vec_p1 / np.sum(vec_p1 ** 2).sum() ** 0.5
+    vec_p1 = vec_p1 / np.sum(vec_p1**2).sum() ** 0.5
     vec_p2 = np.cross(vec_in, vec_p1)
 
     matr = np.concatenate((vec_p1, vec_p2, vec_in)).reshape((3, 3))
@@ -141,8 +138,7 @@ def calc_faceon_matrix(angmom_vec, up=[0.0, 1.0, 0.0]):
     return matr
 
 
-def align(h, vec_to_xform, disk_size="5 kpc", move_all=True, already_centered = False,
-           center_kwargs = None):
+def align(h, vec_to_xform, disk_size="5 kpc", move_all=True, already_centered=False, center_kwargs=None):
     """Reposition and rotate the ancestor of h to place the angular momentum into a specified orientation.
 
     The routine first calls the center routine to reposition the halo (unless already_centered is True).
@@ -180,11 +176,10 @@ def align(h, vec_to_xform, disk_size="5 kpc", move_all=True, already_centered = 
 
     """
 
-
     if center_kwargs is None:
         center_kwargs = {}
 
-    center_kwargs.update({'move_all': move_all})
+    center_kwargs.update({"move_all": move_all})
 
     if already_centered:
         if move_all:
@@ -251,9 +246,9 @@ def sideon(h, **kwargs):
 
     """
 
-    kwargs.update({'vec_to_xform': calc_sideon_matrix})
+    kwargs.update({"vec_to_xform": calc_sideon_matrix})
 
-    return align(h, **kwargs).set_description('sideon')
+    return align(h, **kwargs).set_description("sideon")
 
 
 def faceon(h, **kwargs):
@@ -285,6 +280,6 @@ def faceon(h, **kwargs):
 
     """
 
-    kwargs.update({'vec_to_xform': calc_faceon_matrix})
+    kwargs.update({"vec_to_xform": calc_faceon_matrix})
 
-    return align(h, **kwargs).set_description('faceon')
+    return align(h, **kwargs).set_description("faceon")
