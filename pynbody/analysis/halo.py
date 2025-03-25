@@ -386,16 +386,11 @@ def center(
     if mode is None:
         mode = config["centering-scheme"]
 
-    if with_velocity:
-        particles_for_velocity = cen_num_particles
-    else:
-        particles_for_velocity = 0
-
     try:
         fn = {
             "pot": _potential_minimum,
             "com": lambda s: s.mean_by_mass("pos"),
-            "ssc": functools.partial(shrink_sphere_center, particles_for_velocity=particles_for_velocity),
+            "ssc": functools.partial(shrink_sphere_center, particles_for_velocity=cen_num_particles),
             "hyb": hybrid_center,
         }[mode]
     except KeyError:

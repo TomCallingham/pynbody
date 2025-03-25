@@ -253,7 +253,11 @@ class GadgetHDFSnap(SimSnap):
                     ar_name = self._translate_array_name(this_key, reverse=True)
                     self._loadable_family_keys[fam].add(ar_name)
 
-                can_get_eps &= self._have_softening_for_particle_group(hdf_group)
+                # TC: Else fails for particle names that do not end in int
+                try:
+                    can_get_eps &= self._have_softening_for_particle_group(hdf_group)
+                except Exception:
+                    can_get_eps = False
 
             if can_get_eps:
                 self._loadable_family_keys[fam].add(self._eps_pynbody_name)

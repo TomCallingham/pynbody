@@ -15,7 +15,6 @@ class ZoomSnap:
     ) -> None:
         """orientate_center: Where to center. Nothing, subhalo int, or own orientation,"""
         if not hasattr(self, "hierarchy"):
-            print("Zoom setting hierarchy!")
             self.hierarchy = True
 
         self.analysis_folder = analysis_folder
@@ -25,6 +24,7 @@ class ZoomSnap:
         self.pot_symm = pot_symmetry
         # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
+        self._subfunc_inherit = ["sample"]
 
     @cached_property
     def potential(self):  # -> agama.Potential:
@@ -69,6 +69,40 @@ class ZoomSnap:
             return
         print(f"Creating analysis_folder: {analysis_folder}")
         os.makedirs(analysis_folder)
+
+    def sample(
+        self, fraction: float | None = None, n_select: int | None = None, seed: None | int = 42, subsnap: None = None
+    ):
+        """
+        Randomly downsample current.
+
+        Parameters:
+            fraction (float): Reduce to fraction of current.
+            n_select (int): Select a specific number.
+            seed (int): Seed for the local random number generator.
+        Returns:
+        randomly sampled
+        """
+        sim = self if subsnap is None else subsnap
+        size = len(sim)
+        if n_select is not None:
+            pass
+        elif n_select is None and fraction is not None:
+            n_select = int(round(fraction * size))
+        else:
+            raise AssertionError("Must select a Fraction or number to select")
+
+        assert n_select < size, "Selected number must be less than current size"
+
+        # Create a local RNG with the provided seed so that the global state is unaffected
+        filter_array = np.zeros(size, dtype=bool)
+        if seed is None:
+            true_indices = np.random.choice(size, size=n_select, replace=False)
+        else:
+            true_indices = np.random.default_rng(seed).choice(size, size=n_select, replace=False)
+        filter_array[true_indices] = True
+
+        return sim[filter_array]
 
 
 # Needed to load zoom attributes

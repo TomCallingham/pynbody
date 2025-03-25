@@ -31,7 +31,7 @@ import numpy as np
 import scipy
 import scipy.ndimage
 
-logger = logging.getLogger('pynbody.sph')
+logger = logging.getLogger("pynbody.sph")
 
 from .. import array, config, config_parser, kdtree, snapshot, units, util
 from . import kernels, renderers
@@ -42,59 +42,63 @@ def smooth(sim):
     """Return the smoothing length array for the simulation, using the configured number of neighbours"""
     sim.build_tree()
 
-    logger.info('Smoothing with %d nearest neighbours' %
-                config['sph']['smooth-particles'])
+    logger.info("Smoothing with %d nearest neighbours" % config["sph"]["smooth-particles"])
 
-    sm = array.SimArray(np.empty(len(sim['pos']), dtype=sim['pos'].dtype), sim['pos'].units)
+    sm = array.SimArray(np.empty(len(sim["pos"]), dtype=sim["pos"].dtype), sim["pos"].units)
 
     start = time.time()
-    sim.kdtree.set_array_ref('smooth', sm)
-    sim.kdtree.populate('hsm', config['sph']['smooth-particles'])
+    sim.kdtree.set_array_ref("smooth", sm)
+    sim.kdtree.populate("hsm", config["sph"]["smooth-particles"])
     end = time.time()
 
-    logger.info('Smoothing done in %5.3gs' % (end - start))
+    logger.info("Smoothing done in %5.3gs" % (end - start))
     sim._kdtree_derived_smoothing = True
     return sm
+
 
 def _get_smooth_array_ensuring_compatibility(sim):
     # On-disk smoothing information may conflict; KDTree assumes the number of nearest neighbours
     # is rigidly adhered to. Thus we must use our own self-consistent smoothing.
-    if 'smooth' in sim:
-        if not getattr(sim, '_kdtree_derived_smoothing', False):
+    if "smooth" in sim:
+        if not getattr(sim, "_kdtree_derived_smoothing", False):
             smooth_ar = smooth(sim)
         else:
-            smooth_ar = sim['smooth']
+            smooth_ar = sim["smooth"]
     else:
-        sim['smooth'] = smooth_ar = smooth(sim)
+        sim["smooth"] = smooth_ar = smooth(sim)
     return smooth_ar
+
 
 @snapshot.simsnap.SimSnap.stable_derived_array
 def rho(sim):
     """Return the SPH density array for the simulation, using the configured number of neighbours"""
+
+    if sim["mass"].dtype != sim["pos"].dtype:
+        print(f"Converting Mass dtype {sim['pos'].dtype} to {sim['mass'].dtype}")
+        sim["mass"] = sim["mass"].astype(sim["pos"].dtype)
+
     sim.build_tree()
 
-    logger.info('Calculating SPH density')
-    rho = array.SimArray(
-        np.empty(len(sim['pos'])), sim['mass'].units / sim['pos'].units ** 3,
-        dtype=sim['pos'].dtype)
-
+    logger.info("Calculating SPH density")
+    rho = array.SimArray(np.empty(len(sim["pos"])), sim["mass"].units / sim["pos"].units ** 3, dtype=sim["pos"].dtype)
 
     start = time.time()
 
+    sim.kdtree.set_array_ref("smooth", _get_smooth_array_ensuring_compatibility(sim))
+    sim.kdtree.set_array_ref("mass", sim["mass"])
+    sim.kdtree.set_array_ref("rho", rho)
 
-    sim.kdtree.set_array_ref('smooth', _get_smooth_array_ensuring_compatibility(sim))
-    sim.kdtree.set_array_ref('mass', sim['mass'])
-    sim.kdtree.set_array_ref('rho', rho)
-
-    sim.kdtree.populate('rho', config['sph']['smooth-particles'])
+    sim.kdtree.populate("rho", config["sph"]["smooth-particles"])
 
     end = time.time()
-    logger.info('Density calculation done in %5.3g s' % (end - start))
+    logger.info("Density calculation done in %5.3g s" % (end - start))
 
     return rho
 
-def render_spherical_image(snap, quantity='rho', nside=None, kernel=None, denoise=None, out_units=None, threaded=None,
-                           weight=None, qty=None):
+
+def render_spherical_image(
+    snap, quantity="rho", nside=None, kernel=None, denoise=None, out_units=None, threaded=None, weight=None, qty=None
+):
     """Render an SPH image projected onto the sky around the origin.
 
     At present, only projection is supported (i.e., there is no implementation for rendering on a spherical
@@ -145,16 +149,36 @@ def render_spherical_image(snap, quantity='rho', nside=None, kernel=None, denois
         warnings.warn("The 'qty' parameter is deprecated; use 'quantity' instead", DeprecationWarning)
         quantity = qty
 
-    renderer = renderers.make_render_pipeline(snap, quantity, nside=nside, target='healpix', kernel=kernel,
-                                              out_units=out_units, threaded=threaded,
-                                              approximate_fast=False, weight=weight)
+    renderer = renderers.make_render_pipeline(
+        snap,
+        quantity,
+        nside=nside,
+        target="healpix",
+        kernel=kernel,
+        out_units=out_units,
+        threaded=threaded,
+        approximate_fast=False,
+        weight=weight,
+    )
 
     return renderer.render()
 
 
-def render_3d_grid(snap, quantity='rho', nx=None, ny=None, nz=None, width="10 kpc",
-                   x2=None, out_units=None, kernel=None, approximate_fast=None,
-                   threaded=None,  denoise=None, qty=None):
+def render_3d_grid(
+    snap,
+    quantity="rho",
+    nx=None,
+    ny=None,
+    nz=None,
+    width="10 kpc",
+    x2=None,
+    out_units=None,
+    kernel=None,
+    approximate_fast=None,
+    threaded=None,
+    denoise=None,
+    qty=None,
+):
     """Create a 3d grid via SPH interpolation
 
     Parameters
@@ -210,22 +234,35 @@ def render_3d_grid(snap, quantity='rho', nx=None, ny=None, nz=None, width="10 kp
     """
 
     if x2 is not None:
-        width = x2*2
+        width = x2 * 2
 
     if qty is not None:
         warnings.warn("The 'qty' parameter is deprecated; use 'quantity' instead", DeprecationWarning)
         quantity = qty
 
-    renderer = renderers.make_render_pipeline(snap, quantity=quantity, resolution=nx, width=width,
-                                              out_units = out_units, kernel = kernel,
-                                              approximate_fast=approximate_fast, threaded=threaded,
-                                              denoise=denoise, target='volume', nx=nx, ny=ny, nz=nz)
+    renderer = renderers.make_render_pipeline(
+        snap,
+        quantity=quantity,
+        resolution=nx,
+        width=width,
+        out_units=out_units,
+        kernel=kernel,
+        approximate_fast=approximate_fast,
+        threaded=threaded,
+        denoise=denoise,
+        target="volume",
+        nx=nx,
+        ny=ny,
+        nz=nz,
+    )
     return renderer.render()
+
 
 @util.deprecated("to_3d_grid is deprecated; use render_3d_grid instead")
 def to_3d_grid(*args, **kwargs):
     """Deprecated alias for :func:`render_3d_grid`"""
     return render_3d_grid(*args, **kwargs)
+
 
 def render_image(*args, **kwargs):
     """Render an SPH image. This is a wrapper around the :mod:`renderers` module for convenience.
