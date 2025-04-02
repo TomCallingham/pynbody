@@ -123,7 +123,6 @@ class AurigaLikeHDFSnap(
 
         self.physical_units()
 
-        print("flipping zyx!")
         self.zyx_order()  # Needs to be before orientation goes!
         ZoomSnap.__init__(self, analysis_folder, orientate_center, pot_symmetry)
 
