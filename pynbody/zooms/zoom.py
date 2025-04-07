@@ -41,7 +41,7 @@ class ZoomSnap:
             self.orientation = self.orientate_center
             self.orientation_name = self.orientate_center.get("name", "own_orient")
         elif isinstance(self.orientate_center, int):
-            self.orientation_name = f"suhalo_{self.orientate_center}"
+            self.orientation_name = f"subhalo_{self.orientate_center}"
             self.orientation = load_orientation(self, sub_id=self.orientate_center)
         else:
             raise TypeError(f"Orientation Center not recognised {type(self.orientate_center)}")
