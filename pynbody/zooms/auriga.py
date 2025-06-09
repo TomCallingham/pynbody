@@ -11,39 +11,27 @@ from .zoom import ZoomSnap
 
 import h5py
 
+from .. import family
+
 
 class AurigaStarsWind:
     def __init__(self) -> None:
-        self._stars = None
-        self._winds = None
+        self._special_gettr_keys = ["stars", "star", "wind", "winds"]
 
-    @property
-    def stars(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
-        if self._stars is None:
-            stars = self.s  # pyright: ignore
-            self._stars = stars[stars["aform"] > 0]
-        return self._stars
+    def _special_getattr__(self, name, base):
+        """This function overrides the behaviour of f.X where f is a SimSnap object.
 
-    @property
-    def star(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
-        if self._stars is None:
-            stars = self.s  # pyright: ignore
-            self._stars = stars[stars["aform"] > 0]
-        return self._stars
-
-    @property
-    def winds(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
-        if self._winds is None:
-            stars = self.s  # pyright: ignore
-            self._winds = stars[stars["aform"] < 0]
-        return self._winds
-
-    @property
-    def wind(self) -> IndexedSubSnap | HierarchyIndexedSubSnap:
-        if self._winds is None:
-            stars = self.s  # pyright: ignore
-            self._winds = stars[stars["aform"] < 0]
-        return self._winds
+        It serves two purposes; first, it provides the family-handling behaviour
+        which makes f.dm equivalent to f[pynbody.family.dm]. Second, it implements
+        persistent objects -- properties which are shared between two equivalent SubSnaps."""
+        if name in ["stars", "star"]:
+            sim = base[family.get_family("star")]
+            return sim[sim["aform"] > 0]
+        elif name in ["wind", "winds"]:
+            sim = base[family.get_family("star")]
+            return sim[sim["aform"] < 0]
+        print("Name not in special get=", name)
+        return
 
 
 class AurigaSubFindHdfMultiFileManager(_GadgetHdfMultiFileManager):
@@ -94,20 +82,24 @@ class AurigaSubfindHDFCatalogue(ArepoSubfindHDFCatalogue):
 
 class AurigaHalo(Halo, AurigaStarsWind):
     def __init__(self, halo_number, properties, halo_catalogue, *args, **kwa):
-        Halo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
         AurigaStarsWind.__init__(self)
+        Halo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
 
 
 class AurigaHierarchicalHalo(HierarchicalHalo, AurigaStarsWind):
     def __init__(self, halo_number, properties, halo_catalogue, *args, **kwa):
-        HierarchicalHalo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
         AurigaStarsWind.__init__(self)
+        HierarchicalHalo.__init__(self, halo_number, properties, halo_catalogue, *args, **kwa)
 
 
 auriga_eps = {4: 369 * units.pc, 3: 184 * units.pc}
 
 
-class AurigaLikeHDFSnap(ZoomSnap, GadgetHDFSnap, AurigaStarsWind):
+class AurigaLikeHDFSnap(
+    ZoomSnap,
+    GadgetHDFSnap,
+    AurigaStarsWind,
+):  # , AurigaStarsWind):
     """Reads AurigaHDF"""
 
     _readable_hdf5_test_key = "PartType1/SubGroupNumber"
@@ -122,11 +114,16 @@ class AurigaLikeHDFSnap(ZoomSnap, GadgetHDFSnap, AurigaStarsWind):
         pot_symmetry: Literal["axi", "spherical"] = "axi",
         level=4,
     ):
+        # self._set_default_gadget_units()
+        self._file_units_system_default = True
         GadgetHDFSnap.__init__(self, particle_filename)
         self.halo_file = halo_filename
         self.properties["eps"] = auriga_eps.get(level)
         AurigaStarsWind.__init__(self)
+
         self.physical_units()
+
+        self.zyx_order()  # Needs to be before orientation goes!
         ZoomSnap.__init__(self, analysis_folder, orientate_center, pot_symmetry)
 
         self.forcefloat64 = True

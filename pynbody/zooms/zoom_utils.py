@@ -55,8 +55,7 @@ def top_hierarchy_family(func) -> Callable:
 
 def match_saved_sorted(sim, saved_data, load_keys=None, p_id_key="iord") -> dict:
     sim_families = sim.families()
-    fam0 = sim_families[0]
-    str_fam0 = str(fam0)
+    str_fam0 = str(sim_families[0])
     # star or stars!
     load_keys = load_keys if load_keys is not None else list(saved_data[str_fam0].keys())
     n_part = len(sim)
@@ -67,18 +66,21 @@ def match_saved_sorted(sim, saved_data, load_keys=None, p_id_key="iord") -> dict
         dims = (n_part) if ndim == 1 else (n_part, ndim)
         data[xkey] = np.full(dims, get_fill_val(dtype))
     all_p_ids = sim["iord"].v
-    for fam in sim.families():
+    for fam in sim_families:
         fam_slice = sim._get_family_slice(fam)
         fam_str = str(fam)
         saved_ids = saved_data[fam_str][p_id_key]
         p_ids = all_p_ids[fam_slice]
 
-        p_match = np.isin(p_ids, saved_ids)
-        z_match = np.isin(saved_ids, p_ids[p_match])
-        p_argsort = np.argsort(p_ids[p_match])
-        p_indexes = np.where(p_match)[0][p_argsort]
+        pos = np.searchsorted(saved_ids, p_ids)  # A,B
+        pos[pos >= len(saved_ids)] = 0
+        valid = saved_ids[pos] == p_ids
+
+        filt_B = np.nonzero(valid)[0]
+        filt_A = pos[valid]
+
         for xkey in load_keys:
-            data[xkey][p_indexes] = saved_data[fam_str][xkey][z_match]
+            data[xkey][filt_B] = saved_data[fam_str][xkey][filt_A]
 
     for xkey in load_keys:
         data[xkey] = data[xkey].view(SimArray)

@@ -25,6 +25,7 @@ class ExposedBaseSnapshotMixin:
         "delay_promotion",
         # ME
         "hierarchy",
+        "_special_gettr_keys",
     ]
 
     def __init__(self, base: SimSnap, *args, **kwargs):
@@ -48,7 +49,7 @@ class ExposedBaseSnapshotMixin:
                     continue
                 subfunc = getattr(self.ancestor, x)
 
-                def my_subfunc(*args, **kwargs):
+                def my_subfunc(*args, subfunc=subfunc, **kwargs):
                     return subfunc(*args, **kwargs, subsnap=self)
 
                 my_subfunc.__doc__ = subfunc.__doc__
@@ -232,6 +233,7 @@ class IndexingViewMixin:
     def __init__(self, *args, **kwargs):
         index_array = kwargs.pop("index_array", None)
         iord_array = kwargs.pop("iord_array", None)
+        self.allow_missing_iord = kwargs.pop("allow_missing_iord", False)
         allow_family_sort = kwargs.pop("allow_family_sort", False)
 
         super().__init__(*args, **kwargs)
@@ -247,7 +249,7 @@ class IndexingViewMixin:
             raise ValueError("Cannot define a subsnap with both and index_array and iord_array.")
 
         if iord_array is not None:
-            index_array = self._iord_to_index(iord_array)
+            index_array = self._iord_to_index(iord_array, allow_missing=self.allow_missing_iord)
 
         if isinstance(index_array, filt.Filter):
             self._descriptor = "filtered"
@@ -288,7 +290,7 @@ class IndexingViewMixin:
                     np.asarray(index_array[new_slice]) - self._subsnap_base._get_family_slice(fam).start
                 )
 
-    def _iord_to_index(self, iord):
+    def _iord_to_index(self, iord, allow_missing=False):
         # Maps iord to indices. Note that this requires to perform an argsort (O(N log N) operations)
         # and a binary search (O(M log N) operations) with M = len(iord) and N = len(self._subsnap_base).
         #
@@ -304,14 +306,29 @@ class IndexingViewMixin:
         iord_base = np.ascontiguousarray(iord_base, dtype)
         iord_base_argsort = np.ascontiguousarray(iord_base_argsort, dtype)
 
-        if not util.is_sorted(iord) == 1:
-            raise Exception("Expected iord to be sorted in increasing order.")
+        # if not util.is_sorted(iord) == 1:
+        #     raise Exception("Expected iord to be sorted in increasing order.")
+        # index_array = util.binary_search(a=iord, b=iord_base, sorter=iord_base_argsort)
 
-        index_array = util.binary_search(a=iord, b=iord_base, sorter=iord_base_argsort)
+        sorted = util.is_sorted(iord) == 1
+        if not sorted:
+            ind_sort = np.argsort(iord)
+            ind_unsort = np.argsort(ind_sort)
+            _iord = iord[ind_sort]
+            index_array = util.binary_search(a=_iord, b=iord_base, sorter=iord_base_argsort)
+            index_array = index_array[ind_unsort]
+        else:
+            index_array = util.binary_search(a=iord, b=iord_base, sorter=iord_base_argsort)
 
         # Check that the iord match
         if np.any(index_array == len(iord_base)):
-            raise Exception("Some of the requested ids cannot be found in the dataset.")
+            if allow_missing:
+                print("Warning: Some of the requested ids cannot be found in the dataset.")
+                n = len(index_array)
+                index_array = index_array[index_array < len(iord_base)]
+                print(f" {100 * (len(index_array) / n):.1f}% = {len(index_array)}/{n} found")
+            else:
+                raise Exception("Some of the requested ids cannot be found in the dataset.")
 
         return index_array
 
@@ -452,7 +469,7 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         self._inherit()
 
         self._arrays = {}
-        # self._family_arrays = {}  # NOTE: Needed, else orientation fails...
+        self._family_arrays = {}  # NOTE: Needed, else orientation fails...
         # self.ancestor_family=None
         #
         self._filt_load = True
