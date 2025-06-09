@@ -4,6 +4,7 @@ from ..snapshot.simsnap import SimSnap
 from functools import cached_property
 from .orientation import load_orientation
 import os
+import numpy as np
 
 
 class ZoomSnap:
@@ -24,7 +25,7 @@ class ZoomSnap:
         self.pot_symm = pot_symmetry
         # Some unit bugs if config option is used? Unclear...  :(
         self.physical_units()
-        self._subfunc_inherit = ["sample"]
+        self._subfunc_inherit = ["sample", "sort_by"]
 
     @cached_property
     def potential(self):  # -> agama.Potential:
@@ -103,6 +104,15 @@ class ZoomSnap:
         filter_array[true_indices] = True
 
         return sim[filter_array]
+
+    def sort_by(self, sort_key, subsnap: None = None):
+        """
+        sort selection by key
+        """
+        sim = self if subsnap is None else subsnap
+        indexes = np.argsort(sim[sort_key].v)
+
+        return sim[indexes]
 
 
 # Needed to load zoom attributes
