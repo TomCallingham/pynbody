@@ -42,3 +42,9 @@ def save_pynbody_orientation(fname, orientation) -> None:
         for p, x in orientation.items():
             hf.create_dataset(p, data=x)
     print("Saved orientation!")
+
+
+def save_pynbody_orientation_sim(Sim) -> None:
+    fname = f"{Sim.analysis_folder}pynbody_orientation_{Sim.orientation_name}.hdf5"
+    orientation = Sim.orientation
+    save_pynbody_orientation(fname, orientation)

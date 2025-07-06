@@ -32,6 +32,8 @@ def temp(sim) -> SimArray:
 @AurigaLikeHDFSnap.derived_quantity
 def metallicity(sim) -> SimArray:
     met = np.log10(sim["metals"].v / 0.0127)
+    met[np.isnan(met)] = -12
+    met[np.isinf(met)] = -12
     met = SimArray(met)
     met.sim = sim
     return met
