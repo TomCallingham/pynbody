@@ -2,7 +2,7 @@ from typing import Literal
 from ..snapshot.simsnap import SimSnap
 
 from functools import cached_property
-from .orientation import load_orientation
+from .orientation import load_orientation_name, load_orientation_sub_id
 import os
 import numpy as np
 
@@ -43,7 +43,11 @@ class ZoomSnap:
             self.orientation_name = self.orientate_center.get("name", "own_orient")
         elif isinstance(self.orientate_center, int):
             self.orientation_name = f"subhalo_{self.orientate_center}"
-            self.orientation = load_orientation(self, sub_id=self.orientate_center)
+            self.orientation = load_orientation_sub_id(self, sub_id=self.orientate_center)
+        elif isinstance(self.orientate_center, str):
+            self.orientation_name = f"{self.orientate_center}"
+            self.orientation = load_orientation_name(self)
+            self.orientation["name"] = self.orientation_name
         else:
             raise TypeError(f"Orientation Center not recognised {type(self.orientate_center)}")
         # self.description+=f":{self.orientation_name}"
