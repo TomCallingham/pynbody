@@ -18,7 +18,6 @@ def load_orientation_sub_id(Sim, sub_id: int = 0) -> dict[str, np.ndarray]:
 
 def load_orientation_name(Sim) -> dict[str, np.ndarray]:
     fname = f"{Sim.analysis_folder}pynbody_orientation_{Sim.orientation_name}.hdf5"
-    print(fname)
     if os.path.isfile(fname):
         with h5py.File(fname) as hf:
             orientation_dic = {p: np.asarray(hf[p][:]) for p in ["x_cen", "v_cen", "z_Rot"]}
