@@ -565,7 +565,6 @@ class HierarchyIndexedSubSnap(IndexingViewMixin, ExposedBaseSnapshotMixin, SubSn
         if index is None:
             return x
         else:
-            print("Getting Array in HierarchyIndexedSubSnap with an index?")
             return x[index]
 
     # def set_master(self):
