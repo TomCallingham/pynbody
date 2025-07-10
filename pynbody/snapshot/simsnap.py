@@ -455,7 +455,12 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 del v["_immediate_cache"]
 
     def __getattr__(self, name):
-        if self._special_gettr_keys is not None and name in self._special_gettr_keys:
+        if (
+            name != "_special_getattr__"
+            and name != "_special_gettr_keys"
+            and self._special_gettr_keys is not None
+            and name in self._special_gettr_keys
+        ):
             return self.ancestor._special_getattr__(name, self)
 
         """This function overrides the behaviour of f.X where f is a SimSnap object.
