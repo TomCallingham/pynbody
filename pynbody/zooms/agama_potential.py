@@ -3,7 +3,6 @@ import os
 import numpy as np
 from .. import units, snapshot
 from ..array import SimArray
-from threadpoolctl import threadpool_limits
 
 # define the physical units used in the code: the choice below corresponds to
 # length scale = 1 kpc, velocity = 1 km/s, mass = 1 Msun
@@ -26,6 +25,7 @@ def agama_pynbody_load(Sim) -> agama.Potential:
 
 
 def agama_pynbody_load_axi(Sim, sub_id: None | int = None) -> agama.Potential:
+    print("Loading Axi!")
     f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
     f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
 
@@ -49,6 +49,9 @@ def agama_pynbody_load_axi(Sim, sub_id: None | int = None) -> agama.Potential:
 def agama_pynbody_save_axi(Sim, sub_id=0, n_max=8) -> tuple:
     f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
     f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
+
+    from threadpoolctl import threadpool_limits
+
     with threadpool_limits(limits=n_max, user_api="openmp"):
         print(f"Using threadpool_limits: {n_max}")
         pot_sphere, pot_disc = agama_pynbody_calc_axi(Sim, sub_id=sub_id)
