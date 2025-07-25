@@ -25,7 +25,7 @@ def agama_pynbody_load(Sim) -> agama.Potential:
 
 
 def agama_pynbody_load_axi(Sim, sub_id: None | int = None) -> agama.Potential:
-    print("Loading Axi!")
+    # print("Loading Axi!")
     f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
     f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
 
