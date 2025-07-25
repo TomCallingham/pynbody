@@ -46,7 +46,7 @@ def agama_pynbody_load_axi(Sim, sub_id: None | int = None) -> agama.Potential:
     return agama.Potential(pot_sphere, pot_disc)  # type:ignore
 
 
-def agama_pynbody_save_axi(Sim, sub_id=0, n_max=8) -> tuple:
+def agama_pynbody_save_axi(Sim, sub_id=0, n_max=16) -> tuple:
     f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
     f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
 

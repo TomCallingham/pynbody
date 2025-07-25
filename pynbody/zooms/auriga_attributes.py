@@ -190,9 +190,6 @@ def alpha_Fe(sim) -> SimArray:
     return alpha_Fe
 
 
-from pynbody import units
-
-
 @AurigaLikeHDFSnap.derived_quantity
 def n_HI(sim) -> SimArray:
     proton_mass = SimArray(1.673e-24, units.g)
@@ -218,8 +215,6 @@ def n_H2(sim) -> SimArray:
 @AurigaLikeHDFSnap.derived_quantity
 def n_effH(sim) -> SimArray:
     n_effH = (sim["n_HI"] + 2 * sim["n_H2"]) * (sim["metals"] / 0.0127)
-    print(n_effH.units)
-    print(n_effH)
     return n_effH
 
 
