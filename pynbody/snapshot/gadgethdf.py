@@ -23,7 +23,7 @@ import warnings
 
 import numpy as np
 
-from .. import config_parser, family, units, util
+from .. import chunk, config_parser, family, units, util
 from . import SimSnap, namemapper
 
 
@@ -44,6 +44,8 @@ for hdf_groups in _default_type_map.values():
         _all_hdf_particle_groups.append(hdf_group)
 
 
+_max_buf = 1024 * 512 # max_chunk for chunk.LoadControl
+
 class _DummyHDFData:
     """A stupid class to allow emulation of mass arrays for particles
     whose mass is in the header"""
@@ -58,7 +60,11 @@ class _DummyHDFData:
     def __len__(self):
         return self.length
 
-    def read_direct(self, target):
+    def read_direct(self, target, source_sel=None):
+        """Emulate h5py read_direct.
+
+        The source_sel is ignored as filled with a single value.
+        """
         target[:] = self.value
 
     def __getitem__(self, _):
@@ -80,17 +86,20 @@ class _GadgetHdfMultiFileManager:
             self._filenames = [filename]
             self._numfiles = 1
         else:
-            h1 = h5py.File(filename + ".0.hdf5", mode)
+            h1 = h5py.File(self._make_filename_for_cpu(filename, 0), mode)
             self._numfiles = self._get_num_files(h1)
             if hasattr(self._numfiles, "__len__"):
                 assert len(self._numfiles) == 1
                 self._numfiles = self._numfiles[0]
-            self._filenames = [filename + "." + str(i) + ".hdf5" for i in range(self._numfiles)]
+            self._filenames = [self._make_filename_for_cpu(filename, i) for i in range(self._numfiles)]
 
         self._open_files = {}
 
     def _get_num_files(self, first_file):
         return first_file[self._nfiles_groupname].attrs[self._nfiles_attrname]
+
+    def _make_filename_for_cpu(self, filename, n):
+        return filename + f".{n}.hdf5"
 
     def __len__(self):
         return self._numfiles
@@ -152,6 +161,325 @@ class _SubfindHdfMultiFileManager(_GadgetHdfMultiFileManager):
     _nfiles_attrname = "NTask"
     _subgroup_name = "FOF"
 
+class _HDFFileIterator:
+    def __init__(self, hdf_file_iterator):
+        """
+        Initialize the HDF file iterator. specifically used for LoadControl.iterate_with_interrupts
+        """
+        self._hdf_file_iterator = hdf_file_iterator
+        self.current_hdf_file = None
+        self.file_index = -1
+        self.particle_offset = 0 
+        self.select_file(0)
+
+    def select_file(self, offset):
+        try:
+            self.current_hdf_file = next(self._hdf_file_iterator)
+            self.file_index += 1 # next file
+            self.particle_offset = 0 # Reset offset for the new file
+        except StopIteration:
+            self.current_hdf_file = None
+            self.file_index = -1
+            self.particle_offset = 0
+class _HDFArrayFiller:
+    """A helper class to fill a pynbody array from an HDF5 dataset."""
+
+    def __init__(self, sim_array_to_fill = None, hdf_dataset = None):
+        
+        # default element size for simulation arrays
+        self.sim_element_size = 1 if sim_array_to_fill is None else self._get_element_size(sim_array_to_fill)
+        self.file_element_size = 1 if hdf_dataset is None else self._get_element_size(hdf_dataset)
+        self._update_scaling_factor()
+
+    def _update_sim_element_size(self, sim_array_to_fill):
+        """Update the element size for the simulation array."""
+        self.sim_element_size = self._get_element_size(sim_array_to_fill)
+        self._update_scaling_factor()
+    
+    def _update_file_element_size(self, hdf_dataset):
+        """Update the element size for the HDF5 dataset."""
+        self.file_element_size = self._get_element_size(hdf_dataset)
+        self._update_scaling_factor()
+
+    def _update_scaling_factor(self):
+        """Update the scaling factor based on the current element sizes."""
+        self.scaling_factor = self.sim_element_size / self.file_element_size
+        self.need_rescale = (self.sim_element_size != self.file_element_size)
+
+    def fill_array_from_hdf_dataset(self, sim_array_to_fill, hdf_dataset, source_sel: slice | np.ndarray | None, offset: int = 0):
+        """Fill a simulation array from an HDF5 dataset, handling various indexing and data shapes."""
+        if isinstance(hdf_dataset, _DummyHDFData):
+            hdf_dataset.read_direct(sim_array_to_fill)
+            return
+
+        source_sel = self._preprocess_source_selection(source_sel, offset)
+
+        if isinstance(source_sel, np.ndarray):
+            self._fill_from_fancy_index(sim_array_to_fill, hdf_dataset, source_sel)
+        elif isinstance(source_sel, slice):
+            self._fill_from_slice(sim_array_to_fill, hdf_dataset, source_sel)
+        elif source_sel is None:
+            self._fill_entire_dataset(sim_array_to_fill, hdf_dataset)
+        else:
+            raise TypeError(f"Unsupported source_sel type: {type(source_sel)}. "
+                            "Expected numpy.ndarray, slice, or None.")
+
+    def _get_element_size(self, array):
+        """Get the size of a single element in an array."""
+        if hasattr(array, 'ndim') and array.ndim > 1:
+            return int(np.prod(array.shape[1:]))
+        elif hasattr(array, 'shape') and len(array.shape) > 1:
+            return int(np.prod(array.shape[1:]))
+        else:
+            return 1
+
+    def _preprocess_source_selection(self, source_sel, offset):
+        """Apply offset to the source selection and optimize if possible."""
+        if isinstance(source_sel, slice):
+            return slice(source_sel.start + offset, source_sel.stop + offset)
+        elif isinstance(source_sel, np.ndarray):
+            source_sel = source_sel + offset
+            # convert to slice for efficiency if the indices are contiguous
+            if len(source_sel) > 1 and source_sel[-1] - source_sel[0] == len(source_sel) - 1:
+                return slice(source_sel[0], source_sel[-1] + 1)
+        return source_sel
+
+    def _fill_from_fancy_index(self, sim_array_to_fill, hdf_dataset, source_sel):
+        """Fill array from a non-contiguous (fancy) index."""
+        id_min, id_max = source_sel[0], source_sel[-1]
+        num_read = id_max - id_min + 1
+        indices_in_read_chunk = source_sel - id_min
+
+        contiguous_hdf_slice = self._get_contiguous_hdf_slice(id_min, id_max)
+
+        data_chunk_from_hdf = hdf_dataset[contiguous_hdf_slice]
+        data_chunk_from_hdf = data_chunk_from_hdf.reshape(num_read, *sim_array_to_fill.shape[1:])
+
+        final_data_to_fill = data_chunk_from_hdf[indices_in_read_chunk]
+
+        if sim_array_to_fill.shape == final_data_to_fill.shape:
+            sim_array_to_fill[:] = final_data_to_fill
+        else:
+            sim_array_to_fill.reshape(final_data_to_fill.shape)[:] = final_data_to_fill
+
+    def _fill_from_slice(self, sim_array_to_fill, hdf_dataset, source_sel):
+        """Fill array from a contiguous slice."""
+        
+        if self.need_rescale:
+            source_sel = self._get_contiguous_hdf_slice(source_sel.start, source_sel.stop - 1)
+
+        num_elements = source_sel.stop - source_sel.start
+        if len(hdf_dataset.shape) > 1:
+            expected_chunk_shape = (num_elements,) + hdf_dataset.shape[1:]
+        else:
+            expected_chunk_shape = (num_elements,)
+
+        assert sim_array_to_fill.size == np.prod(expected_chunk_shape)
+
+        sim_array_reshaped = sim_array_to_fill.reshape(expected_chunk_shape)
+        hdf_dataset.read_direct(sim_array_reshaped, source_sel=source_sel)
+
+    def _fill_entire_dataset(self, sim_array_to_fill, hdf_dataset):
+        """Fill array with the entire content of an HDF5 dataset."""
+        assert sim_array_to_fill.size == np.prod(hdf_dataset.shape)
+        sim_array_reshaped = sim_array_to_fill.reshape(hdf_dataset.shape)
+        hdf_dataset.read_direct(sim_array_reshaped, source_sel=None)
+
+    def _get_contiguous_hdf_slice(self, id_min, id_max):
+        """Calculates the slice to select from an HDF5 file to get a contiguous block of data
+        covering the particle range [id_min, id_max], accounting for differing data layouts
+        between the file and memory.
+
+        For example, a 3D position array in memory might be stored as a flat 1D array in the file.
+        This function computes the correct start and end indices for the slice in the flat array.
+        """
+        if self.need_rescale:
+            return np.s_[int(id_min * self.scaling_factor): int((id_max + 1) * self.scaling_factor)]
+        else:
+            return np.s_[id_min: id_max + 1]
+
+class HDFArrayLoader:
+    """A helper class to handle the loading of particle data arrays from Gadget HDF5 files.
+
+    This class abstracts the logic for reading data from potentially multiple HDF5 files,
+    mapping the on-disk particle types to pynbody's family structure, and handling
+    partial loading of snapshots (i.e., loading only a subset of particles). It also
+    handles chunked reading of the data to keep memory usage under control (see
+    pynbody.chunk.LoadControl).
+    """
+    def __init__(self, hdf_files: _GadgetHdfMultiFileManager, all_families: list[family.Family], family_to_group_map: dict[family.Family, list[str]], take: np.ndarray | None = None):
+        """Initializes the HDFArrayLoader.
+
+        Parameters
+        ----------
+        hdf_files : _GadgetHdfMultiFileManager
+            The manager for the set of HDF5 files belonging to the snapshot.
+        all_families : list of pynbody.family.Family
+            A list of all pynbody families present in the simulation, correctly ordered.
+        family_to_group_map : dict[pynbody.family.Family, list[str]]
+            A dictionary mapping each pynbody family to a list of Gadget HDF particle
+            group names (e.g., 'PartType0', 'PartType1').
+        take : np.ndarray or None, optional
+            If not None, this is an array of particle indices to load from the snapshot.
+            This enables partial loading. If None, all particles are loaded. Default is None.
+        """
+
+        self._hdf_files = hdf_files
+        self._all_families = all_families
+        self._family_to_group_map = family_to_group_map
+        
+        self.partial_load = take is not None
+        self.__init_file_map()
+        self.__init_load_map(take)
+
+    def __init_file_map(self):
+        """ Initialize the file map for particle types and families """
+
+        family_slice_start = 0
+
+        self._file_ptype_slice = {} # will map from gadget particle type to location in pynbody logical file map
+        self._file_family_slice = {}
+        self._file_interrupt_points = {} # Records cumulative particle counts at each file boundary for each type
+        for fam in self._all_families:
+            family_length = 0
+
+
+            # A simpler and more readable version of the code below would be:
+            #
+            # for hdf_group in self._all_hdf_groups_in_family(fam):
+            #     family_length += hdf_group[self._size_from_hdf5_key].size
+            #
+            # However, occasionally we need to know where in the pynbody file map the gadget particle types lie.
+            # (Specifically this is used when loading subfind data.) So we need to expand that out a bit and also
+            # keep track of the slice for each gadget particle type.
+
+            ptype_slice_start = family_slice_start
+
+            for particle_type in self._family_to_group_map[fam]:
+
+                ptype_slice_len = 0
+                self._file_interrupt_points[particle_type] = []
+                for hdf_group in self._hdf_files.iter_particle_groups_with_name(particle_type):
+                    ptype_slice_len += hdf_group[self._hdf_files._size_from_hdf5_key].size
+                    self._file_interrupt_points[particle_type].append(ptype_slice_len)
+                self._file_ptype_slice[particle_type] = slice(ptype_slice_start, ptype_slice_start + ptype_slice_len)
+                family_length += ptype_slice_len
+                ptype_slice_start += ptype_slice_len
+
+            self._file_family_slice[fam] = slice(family_slice_start, family_slice_start + family_length)
+            family_slice_start += family_length
+
+        self._num_file_particle = family_slice_start
+        
+    def __init_load_map(self, take = None):
+        """ Set up family slice and particle count for loading """
+
+        self._load_control = chunk.LoadControl(self._file_ptype_slice, _max_buf, take) # use HDF groups type instead of family type here
+        self._family_slice_to_load = {}
+        self._num_particles_to_load = self._load_control.mem_num_particles
+
+        family_slice_start = 0
+        for fam in self._all_families:
+            family_length = 0
+
+            ptype_slice_start = family_slice_start
+
+            for particle_type in self._family_to_group_map[fam]:
+
+                ptype_slice_len = self._load_control.mem_family_slice[particle_type].stop - self._load_control.mem_family_slice[particle_type].start
+
+                family_length += ptype_slice_len
+                ptype_slice_start += ptype_slice_len
+
+            self._family_slice_to_load[fam] = slice(family_slice_start, family_slice_start + family_length)
+            family_slice_start += family_length
+        
+
+    def load_arrays(self, all_fams_to_load: list[family.Family], sim: SimSnap, array_name: str, translated_names: list[str]):
+        """Load an array from the HDF files into the simulation snapshot.
+        
+        Parameters
+        ----------
+        all_fams_to_load : list of pynbody.family.Family
+            A list of pynbody families for which to load the array.
+        sim : SimSnap
+            The parent SimSnap object.
+        array_name : str
+            The pynbody standard name for the array to load.
+        translated_names : list of str
+            A list of possible names for the array in the Gadget HDF file.
+
+        """
+
+        for loading_fam in all_fams_to_load:
+            
+            sim_fam_array, array_filler = self._get_array_filler(array_name, loading_fam, sim, translated_names)
+
+            i0 = 0 # current write position in sim_fam_array
+
+            # A 'gadget group name' is e.g. 'PartType0', 'PartType1' etc.
+            for hdf_group_name in self._family_to_group_map[loading_fam]:
+                if self._file_ptype_slice[hdf_group_name].stop <= self._file_ptype_slice[hdf_group_name].start:
+                    continue
+                # Create iterator for this group type across all files
+                file_iterator = _HDFFileIterator(iter(self._hdf_files.iter_particle_groups_with_name(hdf_group_name)))
+
+                last_file_index = -1
+                for readlen, buf_index, mem_index in self._load_control.iterate_with_interrupts(
+                        hdf_group_name, 
+                        hdf_group_name, 
+                        self._file_interrupt_points[hdf_group_name],  # file offset
+                        file_iterator.select_file): 
+                    if mem_index is None or file_iterator.current_hdf_file is None:
+                        continue
+                    i1 = i0 + mem_index.stop - mem_index.start
+
+                    # Check if we need to load a new dataset
+                    if last_file_index != file_iterator.file_index:
+                        dataset = self._get_dataset_from_translated_names(sim, file_iterator.current_hdf_file, translated_names)
+                        last_file_index = file_iterator.file_index
+
+                    if dataset is not None:
+                        target_array = sim_fam_array[i0:i1]
+                        array_filler.fill_array_from_hdf_dataset(target_array, dataset, source_sel=buf_index,
+                                                                       offset=file_iterator.particle_offset)
+                    file_iterator.particle_offset += readlen
+                    i0 = i1
+
+    def _get_array_filler(self, array_name: str, loading_fam: family.Family, sim: SimSnap, translated_names: list[str]):
+        """
+        Set up and return the simulation family array and its corresponding HDF array filler.
+        """
+        
+        sim_fam_array = sim[loading_fam][array_name]
+        
+        # Find the first dataset for this family to determine file element size
+        first_dataset = None
+        for hdf_group_name in self._family_to_group_map[loading_fam]:
+            if self._file_ptype_slice[hdf_group_name].stop <= self._file_ptype_slice[hdf_group_name].start:
+                continue
+            for hdf_group in self._hdf_files.iter_particle_groups_with_name(hdf_group_name):
+                first_dataset = self._get_dataset_from_translated_names(sim, hdf_group, translated_names)
+                if first_dataset is not None:
+                    break
+            if first_dataset is not None:
+                break
+
+        if first_dataset is None:
+            raise KeyError(f"No dataset found for {array_name} in family {loading_fam}")
+        
+        array_filler = _HDFArrayFiller(sim_fam_array, first_dataset)
+        return sim_fam_array, array_filler
+
+    def _get_dataset_from_translated_names(self, sim_obj, hdf_particle_group, translated_names):
+        """Retrieve an HDF5 dataset from translated_names."""
+        for translated_name in translated_names:
+            try:
+                dataset = sim_obj._get_hdf_dataset(hdf_particle_group, translated_name)
+                return dataset
+            except KeyError:
+                continue
+            
 
 class GadgetHDFSnap(SimSnap):
     """
@@ -170,12 +498,7 @@ class GadgetHDFSnap(SimSnap):
     _mass_pynbody_name = "mass"
     _eps_pynbody_name = "eps"
 
-    _velocity_unit_key = "UnitVelocity_in_cm_per_s"
-    _length_unit_key = "UnitLength_in_cm"
-    _mass_unit_key = "UnitMass_in_g"
-    _time_unit_key = "UnitTime_in_s"
-
-    def __init__(self, filename):
+    def __init__(self, filename, **kwargs):
         """Initialise a Gadget HDF snapshot.
 
         Spanned files are supported. To load a range of files ``snap.0.hdf5``, ``snap.1.hdf5``, ... ``snap.n.hdf5``,
@@ -193,7 +516,11 @@ class GadgetHDFSnap(SimSnap):
         )  # required for swift
         self._init_unit_information()
         self.__init_family_map()
-        self.__init_file_map()
+
+        take = kwargs.pop("take", None)
+        self.partial_load = take is not None
+        self.__init_file_map(take)
+        self._remove_empty_particle_groups()
         self.__init_loadable_keys()
         self.__infer_mass_dtype()
         self._init_properties()
@@ -277,39 +604,22 @@ class GadgetHDFSnap(SimSnap):
         for hdf_family_name in self._family_to_group_map[fam]:
             yield from self._hdf_files.iter_particle_groups_with_name(hdf_family_name)
 
-    def __init_file_map(self):
-        family_slice_start = 0
 
-        all_families_sorted = self._families_ordered()
+    def __init_file_map(self, take):
+        self._array_loader = HDFArrayLoader(self._hdf_files, self._families_ordered(), self._family_to_group_map, take)
+        self._gadget_ptype_slice = self._array_loader._file_ptype_slice
+        self._family_slice = self._array_loader._family_slice_to_load
+        self._num_particles = self._array_loader._num_particles_to_load
 
-        self._gadget_ptype_slice = {}  # will map from gadget particle type to location in pynbody logical file map
+    def _remove_empty_particle_groups(self):
+        """Remove particle groups that contain no particles from the internal family mapping.
 
-        for fam in all_families_sorted:
-            family_length = 0
-
-            # A simpler and more readable version of the code below would be:
-            #
-            # for hdf_group in self._all_hdf_groups_in_family(fam):
-            #     family_length += hdf_group[self._size_from_hdf5_key].size
-            #
-            # However, occasionally we need to know where in the pynbody file map the gadget particle types lie.
-            # (Specifically this is used when loading subfind data.) So we need to expand that out a bit and also
-            # keep track of the slice for each gadget particle type.
-
-            ptype_slice_start = family_slice_start
-
-            for particle_type in self._family_to_group_map[fam]:
-                ptype_slice_len = 0
-                for hdf_group in self._hdf_files.iter_particle_groups_with_name(particle_type):
-                    ptype_slice_len += hdf_group[self._size_from_hdf5_key].size
-                self._gadget_ptype_slice[particle_type] = slice(ptype_slice_start, ptype_slice_start + ptype_slice_len)
-                family_length += ptype_slice_len
-                ptype_slice_start += ptype_slice_len
-
-            self._family_slice[fam] = slice(family_slice_start, family_slice_start + family_length)
-            family_slice_start += family_length
-
-        self._num_particles = family_slice_start
+        This is important for some formats like Arepo where tracer particles might be defined
+        but not present, which can cause issues with `HaloCatalogue`.
+        """
+        for family_name in self._family_to_group_map:
+            self._family_to_group_map[family_name] = [group_name for group_name in self._family_to_group_map[family_name]
+                                           if self._gadget_ptype_slice[group_name].stop > self._gadget_ptype_slice[group_name].start]
 
     def __infer_mass_dtype(self):
         """Some files have a mixture of header-based masses and, for other partile types, explicit mass
@@ -370,28 +680,31 @@ class GadgetHDFSnap(SimSnap):
 
         self._hdf_files.reopen_in_mode("r+")
 
-        if fam is None:
-            target = self
-            all_fams_to_write = self.families()
-        else:
-            target = self[fam]
-            all_fams_to_write = [fam]
-
-        for writing_fam in all_fams_to_write:
-            i0 = 0
-            target_array = self[writing_fam][array_name]
-            for hdf in self._all_hdf_groups_in_family(writing_fam):
-                npart = hdf[self._size_from_hdf5_key].size
-                i1 = i0 + npart
-                target_array_this = target_array[i0:i1]
-
-                dataset = self._get_or_create_hdf_dataset(
-                    hdf, translated_name, target_array_this.shape, target_array_this.dtype
-                )
-
-                dataset.write_direct(target_array_this.reshape(dataset.shape))
-
-                i0 = i1
+        try:
+            if fam is None:
+                target = self
+                all_fams_to_write = self.families()
+            else:
+                target = self[fam]
+                all_fams_to_write = [fam]
+    
+            for writing_fam in all_fams_to_write:
+                i0 = 0
+                target_array = self[writing_fam][array_name]
+                for hdf in self._all_hdf_groups_in_family(writing_fam):
+                    npart = hdf['ParticleIDs'].size
+                    i1 = i0 + npart
+                    target_array_this = target_array[i0:i1]
+    
+                    dataset = self._get_or_create_hdf_dataset(hdf, translated_name,
+                                                              target_array_this.shape,
+                                                              target_array_this.dtype)
+    
+                    dataset.write_direct(target_array_this.reshape(dataset.shape))
+    
+                    i0 = i1
+        finally:
+            self._hdf_files.reopen_in_mode('r')
 
     @staticmethod
     def _get_hdf_allarray_keys(group):
@@ -585,127 +898,14 @@ class GadgetHDFSnap(SimSnap):
                     continue
                 i1 = i0 + npart
 
-                for translated_name in translated_names:
-                    try:
-                        dataset = self._get_hdf_dataset(hdf, translated_name)
-                    except KeyError:
-                        continue
-                # Me - Saves Loading
-                # target_array = self[loading_fam][array_name][i0:i1]
-                target_array = fam_target_array[i0:i1]
-                assert target_array.size == dataset.size
+            target._create_array(array_name, dy, dtype=dtype)
 
-                dataset.read_direct(target_array.reshape(dataset.shape))
+            if units is not None:
+                target[array_name].units = units
+            else:
+                target[array_name].set_default_units()
 
-                i0 = i1
-
-    def _load_array_filtered(self, array_name, target, fam=None):
-        if not self._family_has_loadable_array(fam, array_name):
-            raise OSError("No such array on disk")
-        if not target._filt_load_helper:
-            # target._filt_load_helper = self._filt_load_init(target)
-            self._filt_load_init(target)
-        # load_helper  = target._filt_load_helper
-
-        read_index = target.read_index
-        sort_index = target.sort_index
-        sorting = isinstance(sort_index, np.ndarray)
-
-        translated_names = self._translate_array_name(array_name)
-        dtype, dy, units = self.__get_dtype_dims_and_units(fam, translated_names)
-        dtype = self._mass_dtype if array_name == "mass" else dtype
-
-        all_fams_to_load = target.families() if fam is None else [fam]
-        target._create_array(array_name, dy, dtype=dtype)
-
-        full_target_array = target[array_name]
-
-        if units is not None:
-            full_target_array.units = units
-        else:
-            full_target_array.set_default_units()
-
-        indexes = target.ancestors_index[target.ancestor] if read_index is None else read_index
-
-        for loading_fam in all_fams_to_load:
-            fam_slice = target._get_family_slice(loading_fam)
-            set_array = full_target_array[fam_slice]
-
-            # Get Load Name, check if mass from table
-            translated_name = None
-            hdf = next(self._all_hdf_groups_in_family(loading_fam))
-            hdf_keys = list(hdf.keys())
-            translated_name_list = [name for name in translated_names if name in hdf_keys]
-
-            if len(translated_name_list) == 0:
-                for translated_name in translated_names:
-                    if self._translate_array_name(translated_name, reverse=True) == "mass":
-                        try:
-                            pgid = int(hdf.name[-1])
-                            mtab = hdf.parent["Header"].attrs["MassTable"][pgid]
-                            if mtab > 0:
-                                set_array[:] = mtab
-                        except (IndexError, KeyError):
-                            pass
-                continue
-            translated_name = translated_name_list[0]
-
-            fam_indexes = indexes[fam_slice] - self._family_slice[loading_fam].start
-            # TODO: Update _family_indices to actually match?
-            # fam_indexes =target._family_indices[loading_fam]
-            fam_min, fam_max = fam_indexes[0], fam_indexes[-1]
-
-            i0 = 0  # position within base array
-            my_i0 = 0  # position with hierarchical array
-            my_i1 = 0
-
-            for hdf in self._all_hdf_groups_in_family(loading_fam):
-                npart = hdf[self._size_from_hdf5_key].size
-                if npart == 0:
-                    continue
-                i1 = i0 + npart
-                my_i1 += np.searchsorted(fam_indexes[my_i1:], i1)
-
-                if i1 < fam_min:
-                    i0 = i1
-                    my_i0 = my_i1
-                    continue
-                elif fam_max < i0:
-                    break
-                elif my_i0 == my_i1:
-                    i0 = i1
-                    continue
-
-                dataset = hdf[translated_name]
-
-                my_npart = my_i1 - my_i0
-                if my_npart == npart:
-                    set_array[my_i0:my_i1] = np.asarray(dataset[:])
-                else:
-                    ind_min = fam_indexes[my_i0] - i0
-                    ind_max = fam_indexes[my_i1 - 1] + 1 - i0
-                    data_indexes = fam_indexes[my_i0:my_i1] - fam_indexes[my_i0]
-                    set_array[my_i0:my_i1] = np.asarray(dataset[ind_min:ind_max])[data_indexes]
-                i0 = i1
-                my_i0 = my_i1
-
-        if sorting:
-            full_target_array[:] = full_target_array[sort_index]
-
-    def _filt_load_init(self, target) -> None:
-        # TODO: Pre calculate some of the book keeping, rather than finding each time?
-        #
-        """Checks no negative indexes, sorted vs unsorted"""
-        target.read_index = target.ancestors_index[target.ancestor]
-        if np.min(target.read_index < 0):
-            # Only relevant if coming from main
-            target.read_index[target.read_index < 0] += len(target._subsnapbase)
-        target.sort_index = None
-        if util.is_sorted(target.read_index) != 1:
-            ind_argsort = np.argsort(target.read_index)
-            target.read_index = target.read_index[ind_argsort]
-            target.sort_index = np.argsort(ind_argsort)
-        target._filt_load_helper = True
+            self._array_loader.load_arrays(all_fams_to_load, self, array_name, translated_names)
 
     def __get_dtype_dims_and_units(self, fam, translated_names):
         if fam is None:
@@ -886,12 +1086,16 @@ class GadgetHDFSnap(SimSnap):
         return found
 
     @classmethod
+    def _guess_file_ending(cls, f):
+        return f.with_suffix(".0.hdf5")
+
+    @classmethod
     def _can_load(cls, f):
         if hasattr(h5py, "is_hdf5"):
             if h5py.is_hdf5(f):
                 return cls._test_for_hdf5_key(f)
-            elif h5py.is_hdf5(f.with_suffix(".0.hdf5")):
-                return cls._test_for_hdf5_key(f.with_suffix(".0.hdf5"))
+            elif h5py.is_hdf5(cls._guess_file_ending(f)):
+                return cls._test_for_hdf5_key(cls._guess_file_ending(f))
             else:
                 return False
         else:
