@@ -56,6 +56,21 @@ def test_v_translate(test_simulation_with_copy):
 
     npt.assert_almost_equal(f['vel'], original['vel'])
 
+def test_subsnap_transform(test_simulation_with_copy):
+    """Test for a bug where transformations on subsnaps fail to do lazy-transformation,
+    due to missing 'name' attribute on the subsnap. See also """
+    f, original = test_simulation_with_copy
+    f_lazy_load = f.get_copy_on_access_simsnap()
+
+    f_lazy_load_sub = f_lazy_load[pynbody.filt.Sphere(2)]
+    original_sub = original[pynbody.filt.Sphere(2)]
+
+    with f_lazy_load_sub.translate([1, 0, 0]):
+        f_lazy_load_sub['pos']
+        npt.assert_almost_equal(f_lazy_load_sub['pos'], original_sub['pos'] + [1, 0, 0])
+        f_lazy_load_sub['vel']
+        # not sure why .flatten() below is needed, but get numpy error if not
+        npt.assert_almost_equal(f_lazy_load_sub['vel'].flatten(), original_sub['vel'].flatten())
 
 def test_vp_translate(test_simulation_with_copy):
     f, original = test_simulation_with_copy
@@ -140,7 +155,7 @@ def test_null(test_simulation_with_copy):
         npt.assert_almost_equal(f['pos'], original['pos'])
         assert tx.sim is not None
 
-    with tx.rotate_x(90) as tx2:
+    with f.rotate_x(90) as tx2:
         assert tx2._previous_transformation is None
         assert str(tx2) == "rotate_x(90)"
         npt.assert_almost_equal(f['y'], -original['z'])
@@ -340,3 +355,60 @@ def test_apply_move_to_subsnap():
 
     # the following would fail
     tx = f[subindex].translate([1,0,0])
+
+
+def test_chained_transformation_cleanup():
+    """Test that chained transformations are completely cleaned up after revert.
+
+    Bug: After reverting a chained transformation, NullTransformation
+    remain in the stack instead of being completely cleared. See issue #903
+    """
+    f = pynbody.new(500)
+
+    # Initial state: empty transformation stack
+    assert len(f._transformations) == 0
+
+    # Create chained transformation (mimics pynbody.analysis.center behavior)
+    trans = pynbody.transformation.NullTransformation(f)
+    trans = trans.translate([1, 0, 0])
+
+    # Stack should contain: [<Transformation translate>]
+    # The null transformation is subsumed by the translate transformation
+    assert len(f._transformations) == 1
+
+    # Revert the complete transformation chain
+    trans.revert()
+
+    # Expected: stack should be empty []
+    # Actual: stack contains [<Transformation null>]
+    assert len(f._transformations) == 0, f"Expected empty stack, got: {f._transformations}"
+
+
+def test_nested_context_managers():
+    """Test that nested transformation context managers work correctly.
+
+    Bug: NullTransformation is not properly cleaned
+    causing TransformationException when outer context tries to exit. See issue #903
+    """
+    f = pynbody.new(dm=1000)
+    f['pos'] = np.random.normal(size=(1000, 3))
+    f['vel'] = np.random.normal(size=(1000, 3))
+    f['mass'] = np.ones(1000)
+
+    # Initial state: empty transformation stack
+    assert len(f._transformations) == 0
+
+    # Nested context managers should work without exceptions
+    with f.rotate_x(90):
+        # Inside: [<Transformation rotate_x(90)>]
+        assert len(f._transformations) == 1
+
+        with pynbody.analysis.center(f, with_velocity=False, wrap=False):
+            # Inside: [<rotate_x>, <null>, <translate>]
+            pass
+
+        # After center exits: should be [<rotate_x>] but is [<rotate_x>, <null>]
+        # This causes TransformationException when rotate_x tries to exit
+
+    # Expected: stack should be empty after both contexts exit
+    assert len(f._transformations) == 0, f"Expected empty stack, got: {f._transformations}"
