@@ -728,6 +728,7 @@ class HealpixRenderer(ImageRenderer):
             return super()._get_native_area_unit(smooth, kernel_h_power)
 
     def _call_c_renderer(self, array, geometry, kernel, mass_array, rho_array, smooth_array, x_array, y_array, z_array):
+
         return _render.render_spherical_image_core(rho_array, mass_array, array,
                                                    x_array, y_array, z_array,
                                                    smooth_array, self.geometry.nside, kernel)

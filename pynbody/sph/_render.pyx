@@ -42,7 +42,7 @@ ctypedef np.float64_t fixed_input_type
 
 cdef extern size_t query_disc_c(size_t nside, double* vec0, double radius, size_t *listpix, double *listdist) nogil
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)#False
 @cython.wraparound(False)
 @cython.cdivision(True)
 def render_spherical_image_core(np.ndarray[fused_input_type_1, ndim=1] rho, # array of particle densities
@@ -91,6 +91,8 @@ def render_spherical_image_core(np.ndarray[fused_input_type_1, ndim=1] rho, # ar
 
     cdef size_t n_part = len(x)
 
+    cdef int test_ind
+
     with nogil:
         for i in range(n_part):
             qty_i = qtyar[i]
@@ -111,7 +113,10 @@ def render_spherical_image_core(np.ndarray[fused_input_type_1, ndim=1] rho, # ar
                 physical_offset = distance * angle_buffer[j]
                 kern = get_kernel(physical_offset*physical_offset, kernel_max_2,
                                   smooth_2/distance2, num_samples, samples_c)
-                im[index_buffer[j]] += qty_i * kern * mass[i] / rho[i]
+                test_ind = index_buffer[j]
+                if test_ind>=npix:
+                    continue
+                im[test_ind] += qty_i * kern * mass[i] / rho[i]
 
     return im
 

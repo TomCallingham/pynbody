@@ -25,6 +25,7 @@ def agama_pynbody_load(Sim) -> agama.Potential:
 
 
 def agama_pynbody_load_axi(Sim, sub_id: None | int = None) -> agama.Potential:
+    # print("Loading Axi!")
     f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
     f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
 
@@ -45,10 +46,15 @@ def agama_pynbody_load_axi(Sim, sub_id: None | int = None) -> agama.Potential:
     return agama.Potential(pot_sphere, pot_disc)  # type:ignore
 
 
-def agama_pynbody_save_axi(Sim, sub_id=0) -> tuple:
+def agama_pynbody_save_axi(Sim, sub_id=0, n_max=16) -> tuple:
     f_sphere = f"{Sim.analysis_folder}axi_sphere_{Sim.orientation_name}.coef_mul"
     f_disc = f"{Sim.analysis_folder}axi_disc_{Sim.orientation_name}.coef_cylsp"
-    pot_sphere, pot_disc = agama_pynbody_calc_axi(Sim, sub_id=sub_id)
+
+    from threadpoolctl import threadpool_limits
+
+    with threadpool_limits(limits=n_max, user_api="openmp"):
+        print(f"Using threadpool_limits: {n_max}")
+        pot_sphere, pot_disc = agama_pynbody_calc_axi(Sim, sub_id=sub_id)
     pot_sphere.export(f_sphere)
     pot_disc.export(f_disc)
     print("Potentials Saved")

@@ -99,7 +99,7 @@ class AurigaLikeHDFSnap(
     ZoomSnap,
     GadgetHDFSnap,
     AurigaStarsWind,
-):  # , AurigaStarsWind):
+):
     """Reads AurigaHDF"""
 
     _readable_hdf5_test_key = "PartType1/SubGroupNumber"

@@ -140,9 +140,10 @@ def grid_gen(indices_or_slice,  nx,  ny,  nz, pos=None):
 def sum(np.ndarray[fused_float, ndim=1] ar):
     """OpenMP summation algorithm equivalent to numpy.sum(ar)"""
     cdef fused_float v
-    cdef long i
-    cdef long N=len(ar)
+    cdef Py_ssize_t i
+    cdef Py_ssize_t N=len(ar)
     cdef int num_threads = config['number_of_threads']
+    v = 0
     for i in prange(N,nogil=True,schedule='static',num_threads=num_threads):
         v+=ar[i]
     return v
@@ -155,10 +156,11 @@ def sum_if_gt(np.ndarray[fused_float, ndim=1] ar,
                    double cmp_ar_val):
     """OpenMP summation algorithm equivalent to numpy.sum(ar*(cmp_ar>cmp_ar_val))"""
     cdef fused_float v
-    cdef long i
-    cdef long N=len(ar)
+    cdef Py_ssize_t i
+    cdef Py_ssize_t N=len(ar)
     assert len(cmp_ar)==len(ar)
     cdef int num_threads = config['number_of_threads']
+    v = 0
     for i in prange(N,nogil=True,schedule='static',num_threads=num_threads):
         if cmp_ar[i]>cmp_ar_val:
            v+=(ar[i])
@@ -172,10 +174,11 @@ def sum_if_lt(np.ndarray[fused_float, ndim=1] ar,
                    double cmp_ar_val):
     """OpenMP summation algorithm equivalent to numpy.sum(ar*(cmp_ar<cmp_ar_val))"""
     cdef fused_float v
-    cdef long i
-    cdef long N=len(ar)
+    cdef Py_ssize_t i
+    cdef Py_ssize_t N=len(ar)
     cdef int num_threads = config['number_of_threads']
     assert len(cmp_ar)==len(ar)
+    v = 0
     for i in prange(N,nogil=True,schedule='static',num_threads=num_threads):
         v+=(ar[i])*(cmp_ar[i]<cmp_ar_val)
     return v

@@ -32,6 +32,8 @@ def temp(sim) -> SimArray:
 @AurigaLikeHDFSnap.derived_quantity
 def metallicity(sim) -> SimArray:
     met = np.log10(sim["metals"].v / 0.0127)
+    met[np.isnan(met)] = -12
+    met[np.isinf(met)] = -12
     met = SimArray(met)
     met.sim = sim
     return met
@@ -186,3 +188,76 @@ def alpha_Fe(sim) -> SimArray:
     alpha_Fe = SimArray(np.mean([sim[f"{m}_Fe"].view(np.ndarray) for m in alpha_metals], axis=0))
     alpha_Fe.sim = sim
     return alpha_Fe
+
+
+@AurigaLikeHDFSnap.derived_quantity
+def n_HI(sim) -> SimArray:
+    proton_mass = SimArray(1.673e-24, units.g)
+    rho_gas = sim["rho"]  # Msol kpc^-3
+    X_Hcell = sim["GFM_Metals"][:, 0]  # hydrogen-mass fraction
+    f_HI = sim["NeutralHydrogenAbundance"]  # neutral fraction of H mass
+    f_HI.units = units.Unit(1)
+    X_Hcell.units = units.Unit(1)
+
+    n_HI = (rho_gas * X_Hcell * f_HI) / proton_mass
+
+    return n_HI
+
+
+@AurigaLikeHDFSnap.derived_quantity
+def n_H2(sim) -> SimArray:
+    cold_dense = (sim["temp"] < 300) & (sim["n_HI"] > 10 * units.cm**-3)
+    f_H2 = SimArray(np.where(cold_dense, 0.33, 0.0), units.Unit(1))
+    n_H2 = 0.5 * sim["n_HI"] * f_H2  # 0.5 × because H2 has 2 H atoms
+    return n_H2
+
+
+@AurigaLikeHDFSnap.derived_quantity
+def n_effH(sim) -> SimArray:
+    n_effH = (sim["n_HI"] + 2 * sim["n_H2"]) * (sim["metals"] / 0.0127)
+    return n_effH
+
+
+@AurigaLikeHDFSnap.derived_quantity
+def n_effH_DeVis(sim) -> SimArray:
+    # https://arxiv.org/pdf/1901.09040 DeVis19
+    DGR = (9.6e-3) * ((sim["metals"] / 0.0127) ** (2.45))
+    n_effH = (sim["n_HI"] + 2 * sim["n_H2"]) * DGR / 0.01
+    return n_effH
+
+
+@AurigaLikeHDFSnap.derived_quantity
+def n_effH_RemyRuyer(sim) -> SimArray:
+    # RemyRuyer14
+    """
+    Effective neutral-H number density [cm^-3]:
+      (n_HI + 2 n_H2) * (DGR / 0.01),
+    with DGR(Z) from broken power‐law.
+    """
+    # total metal mass fraction
+    met = sim["metallicity"]
+
+    # dust-to-gas ratio (Mdust/Mgas)
+    DGR = _dgr_broken(met)  # dim‐less
+
+    # combine HI + H2
+    nHI = sim["n_HI"]
+    nH2mol = sim["n_H2"]
+    # scale relative to 1% Milky-Way reference
+    n_eff = (nHI + 2.0 * nH2mol) * (DGR / 0.01)
+
+    return n_eff
+
+
+def _dgr_broken(met):
+    """
+    Mdust/Mgas as a function of log10(Z/Z_sun),
+    broken‐power‐law from Rémy‐Ruyer 14 / De Vis 19.
+    """
+    logDGR = np.where(
+        met <= -0.59,
+        0.96 + 3.10 * met,  # low‐Z branch
+        2.21 + 1.00 * met,
+    )  # high‐Z branch
+    DGR = 10 ** (-logDGR)
+    return np.clip(DGR, 0, 0.02)  # cap at 2 %
