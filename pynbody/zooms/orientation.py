@@ -48,8 +48,9 @@ def calc_apply_pynbody_orientation(
             gas_central = h0.gas[filt.Sphere(disk_size)]
             z_vec = analysis.angmom.ang_mom_vec(gas_central)
             z_vec /= np.linalg.norm(z_vec)
-            # z_Rot = analysis.angmom.calc_faceon_matrix(z_vec)
-            z_Rot = rot_z_to_vec(z_vec)
+            print("Old orientation for Jesse")
+            z_Rot = analysis.angmom.calc_faceon_matrix(z_vec)
+            # z_Rot = rot_z_to_vec(z_vec)
     orientation = {"x_cen": x_cen, "v_cen": v_cen, "z_Rot": z_Rot}
     return orientation
 

@@ -142,7 +142,9 @@ def _v_sph_operation(self, op):
     if op in ["mean", "curl"]:
         sm = array.SimArray(np.empty_like(self["vel"]), self["vel"].units)
     else:
-        sm = array.SimArray(np.empty(len(self["vel"]), dtype=self["vel"].dtype), self["vel"].units)
+        sm = array.SimArray(
+            np.empty(len(self["vel"]), dtype=self["vel"].dtype), self["vel"].units
+        )
 
     if op in ["div", "curl"]:
         sm.units /= self["pos"].units
@@ -195,7 +197,12 @@ def v_div(self):
 @SimSnap.derived_array
 def age(self):
     """Stellar age determined from formation time and current snapshot time"""
-    return self.properties["time"].in_units(self["tform"].units, **self.conversion_context()) - self["tform"]
+    return (
+        self.properties["time"].in_units(
+            self["tform"].units, **self.conversion_context()
+        )
+        - self["tform"]
+    )
 
 
 @SimSnap.derived_array
