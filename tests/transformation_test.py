@@ -16,6 +16,18 @@ def test_simulation_with_copy():
     s['mass'] = np.random.uniform(1.0, 10.0, size=s['mass'].shape)
     return s, copy.deepcopy(s)
 
+@pytest.fixture
+def test_simulation_hole():
+    # This generates a simulation with a cubic hole in the gas and star particle distribution
+    # to test the align method in angmom
+    s = pynbody.new(gas=1000, stars=1000, dm=1000)
+    s['pos'] = np.random.normal(scale=1.0, size=s['pos'].shape)
+    s.g['pos'] += 2*np.sign(s.g['pos'])
+    s.s['pos'] += 2*np.sign(s.s['pos'])
+    s['vel'] = np.random.normal(scale=1.0, size=s['vel'].shape)
+    s['mass'] = np.random.uniform(1.0, 10.0, size=s['mass'].shape)
+    return s, copy.deepcopy(s)
+
 
 def test_translate(test_simulation_with_copy):
     f, original = test_simulation_with_copy
@@ -132,6 +144,23 @@ def test_chaining(test_simulation_with_copy):
 
     npt.assert_almost_equal(f['pos'], original['pos'])
 
+def test_align_particle_selection(test_simulation_hole):
+    '''
+    Previously, the align() function in the angmom module had a bug (GH Issue #922) where
+    a series of checks intended to calculate the angular momentum vector of the central region
+    from either gas, stars, or all particles (in that order).  However, the check did not actually
+    check the number of particles within the central region, but the total number of particles in the
+    simsnap.  This could lead to the vec_to_xform function being called on zero particles, which in
+    turn gives a div-by-zero exception.  This test is intended to check for that behaviour by using
+    a mock dataset with a cubic hole in center of a ball of the gas and stars (but not in the DM).
+    '''
+    f, original = test_simulation_hole
+
+    with pynbody.analysis.angmom.sideon(f, disk_size=1.0):
+        pass
+
+    npt.assert_almost_equal(f['pos'], original['pos'])
+    npt.assert_almost_equal(f['vel'], original['vel'])
 
 def test_halo_managers(test_simulation_with_copy):
     f, original = test_simulation_with_copy
@@ -412,3 +441,34 @@ def test_nested_context_managers():
 
     # Expected: stack should be empty after both contexts exit
     assert len(f._transformations) == 0, f"Expected empty stack, got: {f._transformations}"
+
+
+def test_chained_rotation_apply_to_other_sim():
+    """Ensure apply_to uses the target sim, not the original one (ref #966)."""
+    
+    origin_pos = np.zeros((4, 3))
+    origin_pos[:, 0] = 1.0
+    
+    # Simple, deterministic setup
+    f1 = pynbody.new(dm=4)
+    f1['pos'] = origin_pos
+
+    f2 = pynbody.new(dm=4)
+    f2['pos'] = origin_pos
+
+    # Apply a chained transformation to f1 and reuse it for f2
+    with f1.translate([1, 0, 0]).rotate_z(90) as trans:
+
+        # Apply the same transformation to f2
+        trans.apply_to(f2)
+
+        # Both sims should end up with the same transformed coordinates
+        npt.assert_allclose(f1['pos'], f2['pos'])
+        
+        expected_pos = np.zeros_like(f1['pos'])
+        expected_pos[:, 1] = 2.0
+        npt.assert_allclose(f1['pos'], expected_pos, atol=1e-10)
+
+    # After context exit, f1 is reverted, f2 keeps the applied transformation
+    npt.assert_allclose(f1['pos'], origin_pos)
+    npt.assert_allclose(f2['pos'], expected_pos, atol=1e-10)

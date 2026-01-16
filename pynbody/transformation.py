@@ -461,6 +461,34 @@ class Rotation(Transformation):
             description = "rotate"
         super().__init__(f, description=description)
 
+    def _apply_to_snapshot(self, f):
+        self._transform(self.matrix, f)
+
+    def _unapply_to_snapshot(self, f):
+        self._transform(self.matrix.T, f)
+
+    def _transform(self, matrix, f = None):
+        """Transforms the snapshot according to the 3x3 matrix given."""
+
+        sim = self.sim if f is None else f
+
+        # NB though it might seem more efficient to access _arrays and
+        # _family_arrays directly, this would not work for SubSnaps.
+        snapshot_keys = sim.keys()
+
+        for array_name in snapshot_keys:
+            ar = sim[array_name]
+            if (not ar.derived) and len(ar.shape) == 2 and ar.shape[1] == 3:
+                ar[:] = np.dot(matrix, ar.transpose()).transpose()
+
+        for fam in sim.families():
+            family_keys = sim[fam].keys()
+            family_keys_not_in_snapshot = set(family_keys) - set(snapshot_keys)
+            for array_name in family_keys_not_in_snapshot:
+                ar = sim[fam][array_name]
+                if (not ar.derived) and len(ar.shape) == 2 and ar.shape[1] == 3:
+                    ar[:] = np.dot(matrix, ar.transpose()).transpose()
+
     def _apply_to_array(self, array):
         if len(array.shape) == 2 and array.shape[1] == 3 and (not array.derived):
             array[:] = np.dot(self.matrix, array.transpose()).transpose()

@@ -19,6 +19,7 @@ import contextlib
 import functools
 import itertools
 import logging
+import os
 import warnings
 
 import numpy as np
@@ -155,6 +156,10 @@ class _GadgetHdfMultiFileManager:
             self._open_files = {}
             self._mode = mode
 
+class _GizmoHdfMultiFileManager(_GadgetHdfMultiFileManager):
+
+    def get_unit_attrs(self):
+        return self[0].parent['Header'].attrs
 
 class _SubfindHdfMultiFileManager(_GadgetHdfMultiFileManager):
     _nfiles_groupname = "FOF"
@@ -431,6 +436,10 @@ class HDFArrayLoader:
                         self._file_interrupt_points[hdf_group_name],  # file offset
                         file_iterator.select_file): 
                     if mem_index is None or file_iterator.current_hdf_file is None:
+                        # Skip-read: advance on-disk cursor even when we don't copy into memory,
+                        # otherwise the next actual read will start from the wrong disk position
+                        # at chunk/file boundaries (e.g. slice at start == _max_buf). Refs #955
+                        file_iterator.particle_offset += readlen
                         continue
                     i1 = i0 + mem_index.stop - mem_index.start
 
@@ -497,6 +506,13 @@ class GadgetHDFSnap(SimSnap):
 
     _mass_pynbody_name = "mass"
     _eps_pynbody_name = "eps"
+
+    _velocity_unit_key = 'UnitVelocity_in_cm_per_s'
+    _length_unit_key = 'UnitLength_in_cm'
+    _mass_unit_key = 'UnitMass_in_g'
+    _time_unit_key = 'UnitTime_in_s'
+
+    _units_need_hubble_factors = True
 
     def __init__(self, filename, **kwargs):
         """Initialise a Gadget HDF snapshot.
@@ -747,35 +763,49 @@ class GadgetHDFSnap(SimSnap):
 
         return particle_group[hdf_name]
 
-    @staticmethod
-    def _get_cosmo_factors(hdf, arr_name):
+    @classmethod
+    def _get_cosmo_factors(cls, hdf, arr_names) :
         """Return the cosmological factors for a given array"""
-        match = [
-            s for s in GadgetHDFSnap._get_hdf_allarray_keys(hdf) if ((s.endswith("/" + arr_name)) & ("PartType" in s))
-        ]
-        if (arr_name == "Mass" or arr_name == "Masses") and len(match) == 0:
-            # mass stored in header. We're out in the cold on our own.
-            warnings.warn(
-                "Masses are either stored in the header or have another dataset name; assuming the cosmological factor %s"
-                % units.h**-1
-            )
-            return units.Unit("1.0"), units.h**-1
-        if len(match) > 0:
-            try:
-                aexp = hdf[match[0]].attrs["aexp-scale-exponent"]
-            except KeyError:
-                # gadget4 <sigh>
-                aexp = hdf[match[0]].attrs["a_scaling"]
-            try:
-                hexp = hdf[match[0]].attrs["h-scale-exponent"]
-            except KeyError:
-                # gadget4 <sigh>
-                hexp = hdf[match[0]].attrs["h_scaling"]
-            return units.a ** util.fractions.Fraction.from_float(
-                float(aexp)
-            ).limit_denominator(), units.h ** util.fractions.Fraction.from_float(float(hexp)).limit_denominator()
+        matching_hdf_keys = lambda arr_name: [s for s in GadgetHDFSnap._get_hdf_allarray_keys(hdf)
+                                             if ((s.endswith("/"+arr_name)) & ('PartType' in s))]
+        if isinstance(arr_names, str):
+            arr_name = arr_names
+            match = matching_hdf_keys(arr_name)
         else:
-            return units.Unit("1.0"), units.Unit("1.0")
+            for arr_name in arr_names:
+                match = matching_hdf_keys(arr_name)
+                if len(match) > 0:
+                    break
+
+        if (arr_name == 'Mass' or arr_name == 'Masses') and len(match) == 0:
+            # mass stored in header. We're out in the cold on our own.
+            warnings.warn("Masses are either stored in the header or have another dataset name; assuming the cosmological factor %s" % units.h**-1)
+            if cls._units_need_hubble_factors:
+                return units.Unit('1.0'), units.h**-1
+            else:
+                return units.Unit('1.0'),
+        if len(match) > 0 :
+            attrs  = hdf[match[0]].attrs
+
+            if 'aexp-scale-exponent' in attrs:
+                aexp = attrs['aexp-scale-exponent']
+            elif 'a_scaling' in attrs:
+                # gadget4
+                aexp = attrs['a_scaling']
+            else:
+                raise KeyError("Unable to find aexp-scale-exponent or a_scaling attribute for array %s" % arr_name)
+
+            if 'h-scale-exponent' in attrs:
+                hexp = attrs['h-scale-exponent']
+            elif 'h_scaling' in attrs:
+                # gadget4
+                hexp = attrs['h_scaling']
+            else:
+                raise KeyError("Unable to find h-scale-exponent or h_scaling attribute for array %s" % arr_name)
+
+            return units.a**util.fractions.Fraction.from_float(float(aexp)).limit_denominator(), units.h**util.fractions.Fraction.from_float(float(hexp)).limit_denominator()
+        else :
+            return units.Unit('1.0'), units.Unit('1.0')
 
     def _get_units_from_hdf_attr(self, hdfattrs):
         """Return the units based on HDF attributes VarDescription"""
@@ -962,12 +992,6 @@ class GadgetHDFSnap(SimSnap):
             dtype = np.float64
         return dtype, dy, inferred_units
 
-    def _set_default_gadget_units(self):
-        vel_unit = config_parser.get("gadget-units", "vel")
-        dist_unit = config_parser.get("gadget-units", "pos")
-        mass_unit = config_parser.get("gadget-units", "mass")
-        self._file_units_system = [units.Unit(x) for x in [vel_unit, dist_unit, mass_unit, "K"]]
-
     def _init_unit_information(self):
         if hasattr(self, "_file_units_system_default") and self._file_units_system_default is True:
             # Choose default units, Auriga
@@ -979,12 +1003,15 @@ class GadgetHDFSnap(SimSnap):
         except KeyError:
             # Gadget 4 stores unit information in Parameters attr <sigh>
             atr = self._hdf_files.get_parameter_attrs()
-            if self._velocity_unit_key not in atr.keys():
-                warnings.warn(
-                    "No unit information found in GadgetHDF file. Using gadget default units.", RuntimeWarning
-                )
-                self._set_default_gadget_units()
-                return
+
+        if self._velocity_unit_key not in atr.keys():
+            warnings.warn("No unit information found in GadgetHDF file. Using gadget default units.", RuntimeWarning)
+            vel_unit = config_parser.get('gadget-units', 'vel')
+            dist_unit = config_parser.get('gadget-units', 'pos')
+            mass_unit = config_parser.get('gadget-units', 'mass')
+            self._file_units_system = [units.Unit(x) for x in [
+                vel_unit, dist_unit, mass_unit, "K"]]
+            return
 
         # Define the SubFind units, we will parse the attribute VarDescriptions for these
         if self._velocity_unit_key is not None:
@@ -1040,7 +1067,10 @@ class GadgetHDFSnap(SimSnap):
                 for fac in self._get_cosmo_factors(self._hdf_files[0], "Coordinates"):
                     dist_unit *= fac
             except KeyError:
-                dist_unit *= units.a * units.h**-1
+                if self._units_need_hubble_factors:
+                    dist_unit *= units.a * units.h**-1
+                else:
+                    dist_unit *= units.a
                 warnings.warn("Unable to find cosmological factors in HDF file; assuming position is %s" % dist_unit)
             try:
                 for fac in self._get_cosmo_factors(self._hdf_files[0], "Velocities"):
@@ -1049,10 +1079,10 @@ class GadgetHDFSnap(SimSnap):
                 vel_unit *= units.a ** (1, 2)
                 warnings.warn("Unable to find cosmological factors in HDF file; assuming velocity is %s" % vel_unit)
             try:
-                for fac in self._get_cosmo_factors(self._hdf_files[0], "Mass"):
-                    mass_unit *= fac
+                for fac in self._get_cosmo_factors(self._hdf_files[0], ('Mass', 'Masses')): mass_unit *= fac
             except KeyError:
-                mass_unit *= units.h**-1
+                if self._units_need_hubble_factors:
+                    mass_unit *= units.h**-1
                 warnings.warn("Unable to find cosmological factors in HDF file; assuming mass is %s" % mass_unit)
 
         self._file_units_system = [
@@ -1155,7 +1185,181 @@ class GadgetHDFSnap(SimSnap):
             ]:
                 self.properties[s] = value
 
+class GizmoHDFSnap(GadgetHDFSnap):
+    """
+    Adapts the Gadget HDF reader to read recent versions of Gizmo snapshots.
+    """
+    # Use this test key, some Gizmo outputs (e.g. FIRE) lack Gizmo version info in header
+    _readable_hdf5_test_key = "PartType0/ParticleIDGenerationNumber" 
+    _multifile_manager_class = _GizmoHdfMultiFileManager
+    _velocity_unit_key = 'UnitVelocity_In_CGS'
+    _length_unit_key = 'UnitLength_In_CGS'
+    _mass_unit_key = 'UnitMass_In_CGS'
+    _param_file_velocity_unit_key = 'UnitVelocity_in_cm_per_s'
+    _param_file_length_unit_key = 'UnitLength_in_cm'
+    _param_file_mass_unit_key = 'UnitMass_in_g'
+    _units_need_hubble_factors = False
+    _namemapper_config_section = "gizmohdf-name-mapping"
+    
+    def __init__(self, filename, **kwargs):
+    
+        self._param_filename = kwargs.pop("param_filename", None)
+        
+        super().__init__(filename, **kwargs)
 
+    def _get_units_from_hdf_attr(self, hdfattrs):
+        # Gizmo doesn't seem to store any info about units in the attributes. Let pynbody use the default
+        # dimensions combined with the file units system (if that's even available... otherwise just pure
+        # guesswork!)
+        return units.NoUnit()
+
+    def _init_properties(self):
+        atr = self._get_hdf_header_attrs()
+        name_map = {'Omega_Baryon': 'omegaB0',
+                    'Omega_Matter': 'omegaM0',
+                    'Omega_Lambda': 'omegaL0'}
+        for gizmo_name, pynbody_name in name_map.items():
+            if gizmo_name in atr:
+                self.properties[pynbody_name] = atr[gizmo_name]
+
+        super()._init_properties()
+        
+        
+    def _search_param_file(self):
+        
+        possible_paths = []
+        
+        sim_dir = os.path.dirname(self.filename)
+        
+        relative_paths = [
+            "gizmo_parameters.txt-usedvalues",
+            "../gizmo_parameters.txt-usedvalues",
+            "../../gizmo_parameters.txt-usedvalues",
+            "gizmo_parameters.txt",
+            "../gizmo_parameters.txt",
+            "../../gizmo_parameters.txt",
+        ]
+        
+        for rel_path in relative_paths:
+            abs_path = os.path.join(sim_dir, rel_path)
+            abs_path = os.path.normpath(abs_path)
+            possible_paths.append(abs_path)
+        
+        existing_files = []
+        for file_path in possible_paths:
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                existing_files.append(file_path)
+        
+        if not existing_files:
+            return None
+        elif len(existing_files) == 1:
+            return existing_files[0]
+        else:
+            warnings.warn(
+                f"Multiple param files found. Using: {existing_files[0]}\n"
+                f"Other found files: {existing_files[1:]}")
+            return existing_files[0]
+            
+    def _get_gizmo_param_values(self, param_names):
+        
+        results = {name: None for name in param_names}
+        found_count = 0
+        
+        with open(self._param_filename) as f:
+            for line in f:
+                if found_count >= len(param_names):
+                    break
+                
+                # Remove inline comments
+                if '#' in line:
+                    line = line.split('#')[0]
+                    
+                if '%' in line:
+                    line = line.split('%')[0]
+                
+                line = line.strip()
+                if not line:
+                    continue
+                
+                parts = line.split(None, 1)  # Split on whitespace, max 1 split
+                
+                if len(parts) >= 2:
+                    current_param = parts[0]
+                    value = parts[1].strip()
+                    
+                    if current_param in results and results[current_param] is None:
+                        results[current_param] = value
+                        found_count += 1
+                    
+        return results
+        
+    def _init_unit_information(self):
+        try:
+            atr = self._hdf_files.get_unit_attrs()
+        except KeyError:
+            atr = {"":""}
+            
+        if (self._velocity_unit_key not in atr.keys()):
+
+            if self._param_filename is None:
+                self._param_filename = self._search_param_file()
+
+            if self._param_filename is not None:
+                if not os.path.exists(self._param_filename):
+                    raise FileNotFoundError(f"Parameter file not found: {self._param_filename}")
+
+                keys = [self._param_file_velocity_unit_key, self._param_file_length_unit_key, self._param_file_mass_unit_key]
+                atr = self._get_gizmo_param_values(keys)
+                atr[self._velocity_unit_key] = units.Unit(atr[self._param_file_velocity_unit_key])
+                atr[self._length_unit_key] = units.Unit(atr[self._param_file_length_unit_key])
+                atr[self._mass_unit_key] = units.Unit(atr[self._param_file_mass_unit_key])
+                self._units_need_hubble_factors = True
+        
+        if (self._velocity_unit_key not in atr.keys()):
+            warnings.warn("No unit information found either in the HDF file itself, or as a Gizmo parameter file. Units will revert to defaults. To use a gizmo paramfile, provide its full path as 'param_filename'", RuntimeWarning)
+            self._units_need_hubble_factors = False
+            vel_unit = config_parser.get('gizmohdf-units', 'vel')
+            dist_unit = config_parser.get('gizmohdf-units', 'pos')
+            mass_unit = config_parser.get('gizmohdf-units', 'mass')
+            self._file_units_system = [units.Unit(x) for x in [
+                vel_unit, dist_unit, mass_unit, "K"]]
+            return
+
+        # Define the SubFind units, we will parse the attribute VarDescriptions for these
+        if self._velocity_unit_key is not None:
+            vel_unit = atr[self._velocity_unit_key]
+        else:
+            vel_unit = None
+
+        dist_unit = atr[self._length_unit_key]
+        mass_unit = atr[self._mass_unit_key]
+        
+        cosmo = 'HubbleParam' in list(self._get_hdf_parameter_attrs().keys())
+        if cosmo:
+            try:
+                for fac in self._get_cosmo_factors(self._hdf_files[0], 'Coordinates'): dist_unit *= fac
+            except KeyError:
+                if self._units_need_hubble_factors:
+                    dist_unit *= units.a * units.h**-1
+                else:
+                    dist_unit *= units.a
+                warnings.warn("Unable to find cosmological factors in HDF file; assuming position is %s" % dist_unit)
+            try:
+                for fac in self._get_cosmo_factors(self._hdf_files[0], 'Velocities'): vel_unit *= fac
+            except KeyError:
+                vel_unit *= units.a**(1,2)
+                warnings.warn("Unable to find cosmological factors in HDF file; assuming velocity is %s" % vel_unit)
+            try:
+                for fac in self._get_cosmo_factors(self._hdf_files[0], ('Mass', 'Masses')): mass_unit *= fac
+            except KeyError:
+                if self._units_need_hubble_factors:
+                    mass_unit *= units.h**-1
+                warnings.warn("Unable to find cosmological factors in HDF file; assuming mass is %s" % mass_unit)
+
+        self._file_units_system = [units.Unit(x) for x in [
+            vel_unit*units.cm/units.s, dist_unit*units.cm, mass_unit*units.g, "K"]]
+            
+                
 class ArepoHDFSnap(GadgetHDFSnap):
     """
     Reads Arepo HDF snapshots.
@@ -1223,6 +1427,78 @@ class EagleLikeHDFSnap(GadgetHDFSnap):
             return halo.number_array.HaloNumberCatalogue(self, array="GroupNumber", ignore=np.max(self["GroupNumber"]))
 
 
+        
+@GizmoHDFSnap.derived_array
+def He(self) :
+    He = self['metals_list'][:,1]
+    return He
+    
+@GizmoHDFSnap.derived_array
+def H(self) :
+    H = 1 - self['metals_list'][:,0] - self['He']
+    return H
+   
+@GizmoHDFSnap.derived_array
+def C(self) :
+    C = self['metals_list'][:,2]
+    return C
+    
+@GizmoHDFSnap.derived_array
+def N(self) :
+    N = self['metals_list'][:,3]
+    return N
+    
+@GizmoHDFSnap.derived_array
+def O(self) :
+    O = self['metals_list'][:,4]
+    return O
+    
+@GizmoHDFSnap.derived_array
+def Ne(self) :
+    Ne = self['metals_list'][:,5]
+    return Ne
+     
+@GizmoHDFSnap.derived_array
+def Mg(self) :
+    Mg = self['metals_list'][:,6]
+    return Mg
+    
+@GizmoHDFSnap.derived_array
+def Si(self) :
+    Si = self['metals_list'][:,7]
+    return Si
+    
+@GizmoHDFSnap.derived_array
+def S(self) :
+    S = self['metals_list'][:,8]
+    return S
+    
+@GizmoHDFSnap.derived_array
+def Ca(self) :
+    Ca = self['metals_list'][:,9]
+    return Ca
+    
+@GizmoHDFSnap.derived_array
+def Fe(self) :
+    Fe = self['metals_list'][:,10]
+    return Fe
+    
+@GizmoHDFSnap.derived_array
+def rprocess(self) :
+    # Only stored in some FIRE simulations
+    if self['metals_list'].shape[1] > 10:
+        r_process_models = self['metals_list'][:,11:]
+        return r_process_models
+    
+@GizmoHDFSnap.derived_array
+def metals(self) :
+    metals = self['metals_list'][:,0]
+    # There's some small discrepancy with np.sum(self['metals_list'][:,2:11], axis = 1),
+    # possibly due to reduced precission in float32.
+    # FIRE-2 public release info is incorrect, as self['metals_list'][:,0] 
+    # is clearly not equal to the H mass fraction
+    return metals
+    
 ## Gadget has internal energy variable
 @GadgetHDFSnap.derived_array
 @SubFindHDFSnap.derived_array

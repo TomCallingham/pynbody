@@ -8,10 +8,14 @@ testdata*
 docs/_static/*png
 docs/*png
 .DS_Store
-#Callingham Add
 *.so
-*.c
+*.egg-info
+# Cython generated files (except specific ones that should be tracked)
+pynbody/**/*.c
+pynbody/**/*.cpp
+!pynbody/openmp/direct_omp.c
+
+#Callingham Add
 typings/
-pynbody.egg-info/
 __pycache__/
 config.ini
