@@ -71,6 +71,10 @@ def shrink_sphere_center(
 
     """
 
+    print("Testing scc")
+    print("r")
+    print(r)
+
     if num_threads is None:
         num_threads = config["number_of_threads"]
 
@@ -78,18 +82,23 @@ def shrink_sphere_center(
         # use rough estimate for a maximum radius
         # results will be insensitive to the exact value chosen
         r = (sim["x"].max() - sim["x"].min()) / 2
-
     elif isinstance(r, str) or issubclass(r.__class__, units.UnitBase):
         if isinstance(r, str):
             r = units.Unit(r)
         r = r.in_units(sim["pos"].units, **sim.conversion_context())
+    print(r)
+
 
     mass = np.asarray(sim["mass"], dtype="double")
     pos = np.asarray(sim["pos"], dtype="double")
 
     R = _com.shrink_sphere_center(pos, mass, min_particles, particles_for_velocity, shrink_factor, r, num_threads)
 
+    # print("res?")
+    # print(R)
+
     com, final_radius, velocity_radius = R
+
 
     logger.info("Radius for velocity measurement = %s", velocity_radius)
     logger.info("Final SSC=%s", com)

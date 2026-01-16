@@ -114,8 +114,7 @@ class AurigaLikeHDFSnap(
         pot_symmetry: Literal["axi", "spherical"] = "axi",
         level=4,
     ):
-        # self._set_default_gadget_units()
-        self._file_units_system_default = True
+        self._file_units_system_default = True #Force default gadget units, else overwritten
         GadgetHDFSnap.__init__(self, particle_filename)
         self.halo_file = halo_filename
         self.properties["eps"] = auriga_eps.get(level)
@@ -123,7 +122,7 @@ class AurigaLikeHDFSnap(
 
         self.physical_units()
 
-        self.zyx_order()  # Needs to be before orientation goes!
+        self.zyx_order()  # Needs to be before orientation goes! Transform calls all families
         ZoomSnap.__init__(self, analysis_folder, orientate_center, pot_symmetry)
 
         self.forcefloat64 = True

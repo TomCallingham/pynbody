@@ -34,10 +34,13 @@ def calc_apply_pynbody_orientation(
 ) -> dict:
     """also orientates!"""
     print(f"Calculating orientation of Subhalo {sub_id}")
+    print("New analysis")
     h0 = Sim.halos(subhalos=True)[sub_id]
     x_cen = analysis.halo.center(
-        h0, retcen=True, cen_size=cen_size, with_velocity=False
+        h0, return_cen=True, cen_size=cen_size, with_velocity=False
     )
+    print("xcen calculated")
+
     with transformation.inverse_translate(Sim, x_cen):
         h0 = Sim.halos(subhalos=True)[sub_id]
         v_cen = analysis.halo.vel_center(h0, cen_size=cen_size, retcen=True)

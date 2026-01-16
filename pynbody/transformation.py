@@ -368,7 +368,7 @@ class Transformation(Transformable, abc.ABC):
         snapshot_keys = sim.keys()
         for array_name in snapshot_keys:
             transform_array_func(sim[array_name])
-        for fam in sim.families():
+        for fam in sim.families(): #TC This is why every family is accessed on startup!
             family_keys = sim[fam].keys()
             family_keys_not_in_snapshot = set(family_keys) - set(snapshot_keys)
             for array_name in family_keys_not_in_snapshot:

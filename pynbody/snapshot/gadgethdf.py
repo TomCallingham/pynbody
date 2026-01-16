@@ -329,15 +329,19 @@ class HDFArrayLoader:
             This enables partial loading. If None, all particles are loaded. Default is None.
         """
 
+        print("IN HDF ARRAY LOADER!")
+        print("take=")
+        print(take)
+
         self._hdf_files = hdf_files
         self._all_families = all_families
         self._family_to_group_map = family_to_group_map
         
         self.partial_load = take is not None
-        self.__init_file_map()
+        self._init_file_map()
         self.__init_load_map(take)
 
-    def __init_file_map(self):
+    def _init_file_map(self):
         """ Initialize the file map for particle types and families """
 
         family_slice_start = 0
@@ -535,7 +539,7 @@ class GadgetHDFSnap(SimSnap):
 
         take = kwargs.pop("take", None)
         self.partial_load = take is not None
-        self.__init_file_map(take)
+        self._init_file_map(take)
         self._remove_empty_particle_groups()
         self.__init_loadable_keys()
         self.__infer_mass_dtype()
@@ -621,7 +625,7 @@ class GadgetHDFSnap(SimSnap):
             yield from self._hdf_files.iter_particle_groups_with_name(hdf_family_name)
 
 
-    def __init_file_map(self, take):
+    def _init_file_map(self, take):
         self._array_loader = HDFArrayLoader(self._hdf_files, self._families_ordered(), self._family_to_group_map, take)
         self._gadget_ptype_slice = self._array_loader._file_ptype_slice
         self._family_slice = self._array_loader._family_slice_to_load
@@ -918,24 +922,25 @@ class GadgetHDFSnap(SimSnap):
         else:
             target[array_name].set_default_units()
 
-        for loading_fam in all_fams_to_load:
-            # Me - Saves Loading
-            fam_target_array = self[loading_fam][array_name]
-            i0 = 0
-            for hdf in self._all_hdf_groups_in_family(loading_fam):
-                npart = hdf[self._size_from_hdf5_key].size
-                if npart == 0:
-                    continue
-                i1 = i0 + npart
+        # TC CUT,
+        # for loading_fam in all_fams_to_load:
+        #     # Me - Saves Loading
+        #     fam_target_array = self[loading_fam][array_name]
+        #     i0 = 0
+        #     for hdf in self._all_hdf_groups_in_family(loading_fam):
+        #         npart = hdf[self._size_from_hdf5_key].size
+        #         if npart == 0:
+        #             continue
+        #         i1 = i0 + npart
 
-            target._create_array(array_name, dy, dtype=dtype)
+        #     target._create_array(array_name, dy, dtype=dtype)
 
-            if units is not None:
-                target[array_name].units = units
-            else:
-                target[array_name].set_default_units()
+        #     if units is not None:
+        #         target[array_name].units = units
+        #     else:
+        #         target[array_name].set_default_units()
 
-            self._array_loader.load_arrays(all_fams_to_load, self, array_name, translated_names)
+        self._array_loader.load_arrays(all_fams_to_load, self, array_name, translated_names)
 
     def __get_dtype_dims_and_units(self, fam, translated_names):
         if fam is None:
@@ -991,10 +996,15 @@ class GadgetHDFSnap(SimSnap):
         if hasattr(self, "forcefloat64") and self.forcefloat64 is True and np.issubdtype(dtype, np.floating):
             dtype = np.float64
         return dtype, dy, inferred_units
+    def _set_default_gadget_units(self):
+        vel_unit = config_parser.get("gadget-units", "vel")
+        dist_unit = config_parser.get("gadget-units", "pos")
+        mass_unit = config_parser.get("gadget-units", "mass")
+        self._file_units_system = [units.Unit(x) for x in [vel_unit, dist_unit, mass_unit, "K"]]
 
     def _init_unit_information(self):
         if hasattr(self, "_file_units_system_default") and self._file_units_system_default is True:
-            # Choose default units, Auriga
+            # Choose default units. Aurigas Units were getting overwritten if set further down the chain
             self._set_default_gadget_units()
             return
 

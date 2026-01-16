@@ -249,6 +249,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         the class documentation (:class:`SimSnap`) for more information."""
         from . import subsnap
 
+
         if isinstance(i, str):
             return self._get_array_with_lazy_actions(i)
         elif isinstance(i, slice):
@@ -338,6 +339,7 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             return self[np.where(mask_array)]
 
     def _get_array_with_lazy_actions(self, name):
+        print("In Getting array with lazy action!",name)
         """Get an array by the given name; if it's not available, attempt to load or derive it first"""
         # the below is not thread-safe, so we lock
         nd_name = self._array_name_1D_to_ND(name)
@@ -358,13 +360,13 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
                 self.__resolve_obscuring_family_array(name)
 
                 # Now, we'll try to load the array...
-                # ME
-                loading_name = nd_name or name
+                loading_name = nd_name or name #TC: fixes load bug?
                 if not self.lazy_load_off and loading_name in self.loadable_keys():
                     # if not self.lazy_load_off:
                     # Note that we don't want this to be inside _dependency_tracker.calculating(name), because there is a
                     # small possibility the load will be mapped into a derivation by the loader class. Specifically this
                     # happens in ramses snapshots for the mass array (which is derived from the density array for gas cells).
+                    #
                     self.__load_if_required(loading_name)
 
                 if name in self:
@@ -378,9 +380,11 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
 
         # At this point we've done everything we can to get the array into memory. If it's still not there, we'll
         # get a KeyError from the below.
+        print("End of getting array with lazy action About to _get_array")
         return self._get_array(name)
 
     def __load_if_required(self, name):
+        print("In Load if required:",name)
         # TC
         fam = self._unifamily if hasattr(self, "_unifamily") else None
         if name not in list(self.keys()):
@@ -891,7 +895,10 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         """Calls _load_array for the appropriate subclass, but also attempts to convert
         units of anything that gets loaded and automatically loads the whole ND array
         if this is a subview of an ND array"""
+        print("In   __load_array_and_perform_postprocessing")
+        print("array_name original:",array_name)
         array_name = self._array_name_1D_to_ND(array_name) or array_name
+        print("array_name aftert 1D_to_ND:",array_name)
 
         # keep a record of every array in existence before load (in case it
         # triggers loading more than we expected, e.g. coupled pos/vel fields
@@ -899,18 +906,21 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         #
         from .subsnap import HierarchyIndexedSubSnap
 
-        anc = self if isinstance(self, HierarchyIndexedSubSnap) else self.ancestor
+        # anc_target = self if isinstance(self, HierarchyIndexedSubSnap) else self.ancestor #To load into
+        true_anc= self.ancestor #To get anc
+        anc_target= self.ancestor #To get anc
 
-        pre_keys = set(anc.keys())
+        pre_keys = set(anc_target.keys())
 
         # the following function builds a dictionary mapping families to a set of the
         # named arrays defined for them.
         fk = lambda: {
-            fami: {k for k in list(anc._family_arrays.keys()) if fami in anc._family_arrays[k]}
+            fami: {k for k in list(anc_target._family_arrays.keys()) if fami in anc_target._family_arrays[k]}
             for fami in family._registry
         }
         pre_fam_keys = fk()
 
+        print("About to load array:")
         with self.delay_promotion:
             # delayed promotion is required here, otherwise units get messed up when
             # a simulation array gets promoted mid-way through our loading process.
@@ -919,30 +929,49 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
             if fam is not None:
                 self._load_array(array_name, fam)
             else:
+                #cheap way of seeing if fam only, try fail?
                 try:
                     self._load_array(array_name, fam)
                 except OSError:
                     for fam_x in self.families():
                         self._load_array(array_name, fam_x)
             # Find out what was loaded
-            new_keys = set(anc.keys()) - pre_keys
+            new_keys = set(anc_target.keys()) - pre_keys
             new_fam_keys = fk()
             for fami in new_fam_keys:
                 new_fam_keys[fami] = new_fam_keys[fami] - pre_fam_keys[fami]
+            print("new keys: ",new_keys)
+            print("new fam keys: ",new_fam_keys)
+            print("\n\n")
             with self.lazy_off:
                 # If the loader hasn't given units already, try to determine the defaults
                 # Then, attempt to convert what was loaded into friendly units
+                #
                 for v in new_keys:
-                    if not units.has_units(anc[v]):
-                        anc[v].units = anc._default_units_for(v)
-                    anc._autoconvert_array_unit(anc[v])
-                    anc.apply_transformation_to_array(v, family=None, sim=self)
+                    print(f"In postprocess, check unit setting for new key: {new_keys}")
+                    print("anc_target[v]=",anc_target[v])
+                    if not units.has_units(anc_target[v]):
+                        anc_target[v].units = anc_target._default_units_for(v)
+                        print("has no units!")
+                        print("Unit set:",anc_target._default_units_for(v))
+                    else:
+                        print("has  units!")
+                        print("Already units",anc_target[v].units)
+
+                    print("autocnverting array:")
+                    print("Before autoconvert array:",anc_target[v])
+                    anc_target._autoconvert_array_unit(anc_target[v])
+                    print("After autoconvert array",anc_target[v])
+                    anc_target.apply_transformation_to_array(v, family=None, sim=self)
+
+                #Fam loop of same
                 for f, vals in new_fam_keys.items():
                     for v in vals:
-                        if not units.has_units(anc[f][v]):
-                            anc[f][v].units = anc._default_units_for(v)
-                        anc._autoconvert_array_unit(anc[f][v])
-                        anc.apply_transformation_to_array(v, f, self)
+                        if not units.has_units(anc_target[f][v]):
+                            anc_target[f][v].units = anc_target._default_units_for(v)
+                        anc_target._autoconvert_array_unit(anc_target[f][v])
+                        anc_target.apply_transformation_to_array(v, f, self)
+            print("\n\n")
 
     ############################################
     # VECTOR TRANSFORMATIONS OF THE SNAPSHOT
