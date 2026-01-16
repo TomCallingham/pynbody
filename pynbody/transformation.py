@@ -60,8 +60,10 @@ class TransformationException(Exception):
 
     pass
 
+
 class Transformable:
     """A mixin class for objects that can generate a Transformation object"""
+
     def __init__(self):
         self._transformations = []
 
@@ -86,7 +88,7 @@ Possible reasons include that the transformation has already been reverted, or t
         as a context manager to ensure that the translation is undone.
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
-        return GenericTranslation(self, 'pos', offset, description="translate")
+        return GenericTranslation(self, "pos", offset, description="translate")
 
     def offset_velocity(self, offset):
         """Shift the velocity by the given offset.
@@ -95,7 +97,7 @@ Possible reasons include that the transformation has already been reverted, or t
         as a context manager to ensure that the velocity shift is undone.
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
-        return GenericTranslation(self, 'vel', offset, description = "offset_velocity")
+        return GenericTranslation(self, "vel", offset, description="offset_velocity")
 
     def rotate_x(self, angle):
         """Rotates about the current x-axis by 'angle' degrees.
@@ -105,10 +107,12 @@ Possible reasons include that the transformation has already been reverted, or t
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
         angle_rad = angle * np.pi / 180
-        return self.rotate(np.array([[1, 0, 0],
-                                     [0, np.cos(angle_rad), -np.sin(angle_rad)],
-                                     [0, np.sin(angle_rad),  np.cos(angle_rad)]]),
-                           description = f"rotate_x({angle})")
+        return self.rotate(
+            np.array(
+                [[1, 0, 0], [0, np.cos(angle_rad), -np.sin(angle_rad)], [0, np.sin(angle_rad), np.cos(angle_rad)]]
+            ),
+            description=f"rotate_x({angle})",
+        )
 
     def rotate_y(self, angle):
         """Rotates about the current y-axis by 'angle' degrees.
@@ -118,10 +122,12 @@ Possible reasons include that the transformation has already been reverted, or t
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
         angle_rad = angle * np.pi / 180
-        return self.rotate(np.array([[np.cos(angle_rad), 0, np.sin(angle_rad)],
-                                     [0,                1,        0],
-                                     [-np.sin(angle_rad),   0,   np.cos(angle_rad)]]),
-                           description = f"rotate_y({angle})")
+        return self.rotate(
+            np.array(
+                [[np.cos(angle_rad), 0, np.sin(angle_rad)], [0, 1, 0], [-np.sin(angle_rad), 0, np.cos(angle_rad)]]
+            ),
+            description=f"rotate_y({angle})",
+        )
 
     def rotate_z(self, angle):
         """Rotates about the current z-axis by 'angle' degrees.
@@ -131,12 +137,14 @@ Possible reasons include that the transformation has already been reverted, or t
 
         For more information, see the :mod:`pynbody.transformation` documentation."""
         angle_rad = angle * np.pi / 180
-        return self.rotate(np.array([[np.cos(angle_rad), -np.sin(angle_rad), 0],
-                                     [np.sin(angle_rad),  np.cos(angle_rad), 0],
-                                     [0,             0,        1]]),
-                           description = f"rotate_z({angle})")
+        return self.rotate(
+            np.array(
+                [[np.cos(angle_rad), -np.sin(angle_rad), 0], [np.sin(angle_rad), np.cos(angle_rad), 0], [0, 0, 1]]
+            ),
+            description=f"rotate_z({angle})",
+        )
 
-    def rotate(self, matrix, description = None):
+    def rotate(self, matrix, description=None):
         """Rotates using a specified matrix.
 
         Returns a :class:`pynbody.transformation.Rotation` object which can be used
@@ -153,14 +161,20 @@ Possible reasons include that the transformation has already been reverted, or t
         description : str
             A description of the rotation to be returned from str() and repr()
         """
-        return Rotation(self, matrix, description = description)
+        return Rotation(self, matrix, description=description)
 
-    @util.deprecated("This method is deprecated and will be removed in a future version. Use the rotate method instead.")
+    def zyx_order(self):
+        """changes zyx to xyz, present in some simulations"""
+        return ZYX_Order(self)
+
+    @util.deprecated(
+        "This method is deprecated and will be removed in a future version. Use the rotate method instead."
+    )
     def transform(self, matrix):
         """Deprecated alias for :meth:`rotate`."""
         return self.rotate(matrix)
 
-    def apply_transformation_to_array(self, array_name, family = None):
+    def apply_transformation_to_array(self, array_name, family=None, sim=None):
         """Apply the current transformation to an array.
 
         This is used internally by the snapshot class to ensure that arrays are transformed
@@ -176,7 +190,7 @@ Possible reasons include that the transformation has already been reverted, or t
         """
 
         for transform in self._transformations:
-            transform.apply_transformation_to_array(array_name, family)
+            transform.apply_transformation_to_array(array_name, family, sim=sim)
 
 
 class Transformation(Transformable, abc.ABC):
@@ -190,7 +204,7 @@ class Transformation(Transformable, abc.ABC):
     >>>    ...
     """
 
-    def __init__(self, f, description = None):
+    def __init__(self, f, description=None):
         """Initialise a transformation, and apply it if not explicitly deferred
 
         Parameters
@@ -231,7 +245,6 @@ class Transformation(Transformable, abc.ABC):
         else:
             raise TypeError("Transformation must either act on another Transformation or on a SimSnap")
 
-
         self._apply_to_snapshot(self.sim)
         # not apply_to as we don't want to chain -- any underlying transformations will be applied already
 
@@ -239,7 +252,6 @@ class Transformation(Transformable, abc.ABC):
             self.sim._deregister_transformation(f)
 
         self.sim._register_transformation(self)
-
 
     def __repr__(self):
         return "<Transformation " + str(self) + ">"
@@ -309,7 +321,6 @@ class Transformation(Transformable, abc.ABC):
         if self._previous_transformation is not None:
             self._previous_transformation.apply_inverse_to(f)
 
-
     def revert(self):
         """Revert the transformation. If it has not been applied, a TransformationException is raised."""
         if self._reverted:
@@ -324,17 +335,17 @@ class Transformation(Transformable, abc.ABC):
             transformation._reverted = True
             transformation = transformation._previous_transformation
 
-    def apply_transformation_to_array(self, array_name, family):
+    def apply_transformation_to_array(self, array_name, family=None, sim=None) -> None:
         if self._previous_transformation is not None:
-            self._previous_transformation.apply_transformation_to_array(array_name, family)
+            self._previous_transformation.apply_transformation_to_array(array_name, family, sim)
 
+        sim = sim if sim is not None else self.sim
         if family is not None:
-            array = self.sim._get_family_array(array_name, family)
+            array = sim._get_family_array(array_name, family)
         else:
-            array = self.sim._get_array(array_name)
+            array = sim._get_array(array_name)
 
         self._apply_to_array(array)
-
 
     def __enter__(self):
         if self._reverted:
@@ -344,16 +355,31 @@ class Transformation(Transformable, abc.ABC):
     def __exit__(self, *args):
         self.revert()
 
-    @abc.abstractmethod
-    def _apply_to_snapshot(self, f):
-        pass
+    def _apply_to_snapshot(self, sim):
+        self._transform_snapshot(sim, self._apply_to_array)
+
+    def _unapply_to_snapshot(self, sim):
+        self._transform_snapshot(sim, self._unapply_to_array)
+
+    def _transform_snapshot(self, sim, transform_array_func):
+        sim = self.sim
+        # NB though it might seem more efficient to access _arrays and
+        # _family_arrays directly, this would not work for SubSnaps.
+        snapshot_keys = sim.keys()
+        for array_name in snapshot_keys:
+            transform_array_func(sim[array_name])
+        for fam in sim.families():
+            family_keys = sim[fam].keys()
+            family_keys_not_in_snapshot = set(family_keys) - set(snapshot_keys)
+            for array_name in family_keys_not_in_snapshot:
+                transform_array_func(sim[fam][array_name])
 
     @abc.abstractmethod
     def _apply_to_array(self, array):
         pass
 
     @abc.abstractmethod
-    def _unapply_to_snapshot(self, f):
+    def _unapply_to_array(self, array):
         pass
 
 
@@ -363,20 +389,17 @@ class NullTransformation(Transformation):
     def __init__(self, f):
         super().__init__(f, description="null")
 
-    def _apply_to_snapshot(self, f):
-        pass
-
     def _apply_to_array(self, array):
         pass
 
-    def _unapply_to_snapshot(self, f):
+    def _unapply_to_array(self, array):
         pass
 
 
 class GenericTranslation(Transformation):
     """A translation on a specified array of a simulation"""
 
-    def __init__(self, f, arname, shift, description = None):
+    def __init__(self, f, arname, shift, description=None):
         """Initialise a translation on a named array
 
         Parameters
@@ -394,21 +417,19 @@ class GenericTranslation(Transformation):
         self.arname = arname
         super().__init__(f, description=description)
 
-    def _apply_to_snapshot(self, f):
-        f[self.arname] += self.shift
-
-    def _unapply_to_snapshot(self, f):
-        f[self.arname] -= self.shift
-
     def _apply_to_array(self, array):
-        if array.name == self.arname:
+        if array._name == self.arname:
             array += self.shift
+
+    def _unapply_to_array(self, array):
+        if array._name == self.arname:
+            array -= self.shift
 
 
 class Rotation(Transformation):
     """A rotation on all 3d vectors in a simulation, by a given orthogonal 3x3 matrix"""
 
-    def __init__(self, f, matrix, ortho_tol=1.e-8, description = None):
+    def __init__(self, f, matrix, ortho_tol=1.0e-8, description=None):
         """Initialise a rotation on a simulation.
 
         The matrix must be orthogonal to within *ortho_tol*.
@@ -432,7 +453,7 @@ class Rotation(Transformation):
         """
         # Check that the matrix is orthogonal
         resid = np.dot(matrix, np.asarray(matrix).T) - np.eye(3)
-        resid = (resid ** 2).sum()
+        resid = (resid**2).sum()
         if resid > ortho_tol or resid != resid:
             raise ValueError("Transformation matrix is not orthogonal")
         self.matrix = matrix
@@ -469,52 +490,98 @@ class Rotation(Transformation):
                     ar[:] = np.dot(matrix, ar.transpose()).transpose()
 
     def _apply_to_array(self, array):
-        if len(array.shape) == 2 and array.shape[1] == 3:
+        if len(array.shape) == 2 and array.shape[1] == 3 and (not array.derived):
             array[:] = np.dot(self.matrix, array.transpose()).transpose()
 
+    def _unapply_to_array(self, array):
+        if len(array.shape) == 2 and array.shape[1] == 3 and (not array.derived):
+            array[:] = np.dot(self.matrix.T, array.transpose()).transpose()
 
-GenericRotation = Rotation # name from pynbody v1
+
+class ZYX_Order(Transformation):
+    """Changes Order of ZYX"""
+
+    def __init__(self, f):
+        """Changes Order of pos and vel ZYX
+
+        Parameters
+        ----------
+        f : SimSnap
+            The simulation to act on
+
+        """
+        description = "ZYX"
+        super().__init__(f, description=description)
+
+    def _apply_to_array(self, array):
+        if array._name in ("pos", "vel") and len(array.shape) == 2:
+            array[:] = array[:, ::-1]
+
+    def _unapply_to_array(self, array):
+        self._apply_to_array(array)
 
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead.")
+GenericRotation = Rotation  # name from pynbody v1
+
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead."
+)
 def translate(f, shift):
     """Deprecated alias for ``f.translate(shift)``"""
 
-    return GenericTranslation(f, 'pos', shift)
+    return GenericTranslation(f, "pos", shift)
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the translate method of a SimSnap object instead."
+)
 def inverse_translate(f, shift):
     """Deprecated alias for ``f.translate(-shift)``"""
     return translate(f, -np.asarray(shift))
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead."
+)
 def v_translate(f, shift):
     """Deprecated alias for ``f.offset_velocity(shift)``"""
 
-    return GenericTranslation(f, 'vel', shift)
+    return GenericTranslation(f, "vel", shift)
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use the offset_velocity method of a SimSnap object instead."
+)
 def inverse_v_translate(f, shift):
     """Deprecated alias for ``f.offset_velocity(-shift)``"""
 
-    return GenericTranslation(f, 'vel', -np.asarray(shift))
+    return GenericTranslation(f, "vel", -np.asarray(shift))
 
-@util.deprecated("This function is deprecated and will be removed in a future version. Use sim.translate(...).vel_translate(...) instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. Use sim.translate(...).vel_translate(...) instead."
+)
 def xv_translate(f, x_shift, v_shift):
     """Deprecated alias for ``f.translate(x_shift).offset_velocity(v_shift)``"""
 
     return translate(v_translate(f, v_shift), x_shift)
 
-@util.deprecated("This function is deprecated and will be removed in a future version. "
-                 "Use sim.translate(...).vel_translate(...) instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. "
+    "Use sim.translate(...).vel_translate(...) instead."
+)
 def inverse_xv_translate(f, x_shift, v_shift):
     """Deprecated alias for ``f.translate(-x_shift).offset_velocity(-v_shift)``"""
 
-    return translate(v_translate(f, -np.asarray(v_shift)),
-                     -np.asarray(x_shift))
+    return translate(v_translate(f, -np.asarray(v_shift)), -np.asarray(x_shift))
 
-@util.deprecated("This function is deprecated and will be removed in a future version. "
-                 "Use the rotate method of a SimSnap object instead.")
+
+@util.deprecated(
+    "This function is deprecated and will be removed in a future version. "
+    "Use the rotate method of a SimSnap object instead."
+)
 def transform(f, matrix):
     """Deprecated alias for ``f.rotate(matrix)``"""
 

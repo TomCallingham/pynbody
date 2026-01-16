@@ -4,6 +4,7 @@ import pynbody.util.indexing_tricks
 from pynbody import filt, util
 from pynbody.snapshot import SimSnap
 
+import inspect
 
 class ExposedBaseSnapshotMixin:
     # The following will be objects common to a SimSnap and all its SubSnaps
@@ -22,7 +23,24 @@ class ExposedBaseSnapshotMixin:
         self._get_array_lock = self.base._get_array_lock
 
         for x in self._inherited:
-            setattr(self, x, getattr(self.base, x))
+            if hasattr(self.base, x):
+                setattr(self, x, getattr(self.base, x))
+
+        # TC. Allow the passing of functions down to the sub_funcs
+        if hasattr(self.base, "_subfunc_inherit"):
+            setattr(self, "_subfunc_inherit", getattr(self.base, "_subfunc_inherit"))
+            for x in self.base._subfunc_inherit:
+                if not hasattr(self.ancestor, x):
+                    continue
+                subfunc = getattr(self.ancestor, x)
+
+                def my_subfunc(*args, subfunc=subfunc, **kwargs):
+                    return subfunc(*args, **kwargs, subsnap=self)
+
+                my_subfunc.__doc__ = subfunc.__doc__
+                my_subfunc.__signature__ = inspect.signature(subfunc)
+
+                setattr(self, x, my_subfunc)
 
 class SubSnapBase(SimSnap):
     def __init__(self, base):

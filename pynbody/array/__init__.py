@@ -234,6 +234,11 @@ class SimArray(np.ndarray):
     __slots__ = ['_units', '_sim', '_name', '_family']
 
     @property
+    def v(self):
+        """Returns numpy array view"""
+        return self.view(np.ndarray)
+
+    @property
     def ancestor(self):
         """Provides the basemost SimArray that an IndexedSimArray is based on."""
         return self
@@ -1089,6 +1094,11 @@ class IndexedSimArray:
       equivalents within ``numpy.ndarray``. See also the note on function documentation for :class:`SimArray`.
 
     """
+
+    @property
+    def v(self):
+        """Returns numpy array view"""
+        return self.view(np.ndarray)
     @property
     def derived(self):
         return self.base.derived

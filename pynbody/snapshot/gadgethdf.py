@@ -817,6 +817,7 @@ class GadgetHDFSnap(SimSnap):
         if 'VarDescription' not in hdfattrs:
             warnings.warn("Unable to infer units from HDF attributes")
             return units.NoUnit()
+        print("In get_uits from hdf_attr in gadget. Am i getting the scale correct?")
 
         VarDescription = str(hdfattrs['VarDescription'])
         CGSConversionFactor = float(hdfattrs['CGSConversionFactor'])
