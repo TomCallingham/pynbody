@@ -11,7 +11,8 @@ class ExposedBaseSnapshotMixin:
     _inherited = ["_immediate_cache_lock",
                   "lazy_off", "lazy_derive_off", "lazy_load_off", "auto_propagate_off",
                   "properties", "_derived_array_names", "_family_derived_array_names",
-                  "_dependency_tracker", "immediate_mode", "delay_promotion"]
+                  "_dependency_tracker", "immediate_mode", "delay_promotion",
+                  "_special_gettr_keys"]
 
     def __init__(self, base: SimSnap, *args, **kwargs):
         self.base = base

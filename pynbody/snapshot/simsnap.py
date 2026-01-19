@@ -186,6 +186,8 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         self.properties = simdict.SimDict({})
 
         self._file_units_system = []
+        #TC Hack for Auriga
+        self._special_gettr_keys = None
 
     ############################################
     # THE BASICS: SIMPLE INFORMATION
@@ -449,6 +451,14 @@ class SimSnap(ContainerWithPhysicalUnitsOption, iter_subclasses.IterableSubclass
         It serves two purposes; first, it provides the family-handling behaviour
         which makes f.dm equivalent to f[pynbody.family.dm]. Second, it implements
         persistent objects -- properties which are shared between two equivalent SubSnaps."""
+        if ( #TC Hack for Auriga WindStars
+            name != "_special_getattr__"
+            and name != "_special_gettr_keys"
+            and self._special_gettr_keys is not None
+            and name in self._special_gettr_keys
+        ):
+            return self.ancestor._special_getattr__(name, self)
+
         if name in SimSnap._persistent:
             obj = self.ancestor._get_persist(self._inclusion_hash, name)
             if obj:

@@ -88,8 +88,6 @@ def agama_pynbody_calc_axi(Sim, rcut: float = 500, sub_id: None | int = 0) -> tu
     Gas = Sim.gas
     Stars = Sim.stars
     DM = Sim.dm
-    # TODO: Auriga Specific with wind!
-    Wind = Sim.winds
     # separate cold gas in disk (modeled with cylspline) from hot gas in halo
     # (modeled with multipole)
     cold_gas_filt = np.log10(Gas["temp"].v) < 4.5
@@ -103,11 +101,11 @@ def agama_pynbody_calc_axi(Sim, rcut: float = 500, sub_id: None | int = 0) -> tu
         disc_pos = Gas["pos"].v[cold_gas_filt]
         disc_mass = Gas["mass"].v[cold_gas_filt]
 
-    # combine components that will be fed to the multipol part
-    if len(Wind) > 0:
+    try:
+        Wind = Sim.winds #Hacky, but only way of seeing if its loadable?
         sphere_pos = np.vstack((DM["pos"].v, Gas["pos"].v[hot_gas_filt], Wind["pos"].v))
         sphere_mass = np.hstack((DM["mass"].v, Gas["mass"].v[hot_gas_filt], Wind["mass"].v))
-    else:
+    except Exception:
         sphere_pos = np.vstack((DM["pos"].v, Gas["pos"].v[hot_gas_filt]))
         sphere_mass = np.hstack((DM["mass"].v, Gas["mass"].v[hot_gas_filt]))
 
