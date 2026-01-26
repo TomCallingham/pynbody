@@ -743,26 +743,18 @@ class GadgetHDFSnap(SimSnap):
         self._mass_dtype = mass_dtype
 
     def _families_ordered(self):
-        print("In _families_ordered (ln743)")
         # order by the PartTypeN
         all_families = list(self._family_to_group_map.keys())
-        print(self._family_to_group_map)
-        print(all_families)
         all_families_sorted = sorted(
             all_families, key=lambda v: self._family_to_group_map[v][0]
         )
         return all_families_sorted
 
     def __init_family_map(self):
-        print("Gadget __init_family_map")
-        if hasattr(self, "_family_to_group_map") and len(self._family_to_group_map) > 0:
-            return
         type_map = {}
         for fam, g_types in _default_type_map.items():
-            print(fam, g_types)
             my_types = []
             for x in g_types:
-                print(x)
                 # Get all keys from all hdf files
                 for hdf in self._hdf_files:
                     if x in list(hdf.keys()):
@@ -819,7 +811,7 @@ class GadgetHDFSnap(SimSnap):
                 i0 = 0
                 target_array = self[writing_fam][array_name]
                 for hdf in self._all_hdf_groups_in_family(writing_fam):
-                    npart = hdf["ParticleIDs"].size
+                    npart = hdf[self._size_from_hdf5_key].size
                     i1 = i0 + npart
                     target_array_this = target_array[i0:i1]
 
@@ -1106,7 +1098,7 @@ class GadgetHDFSnap(SimSnap):
         # So check if the dimensions make sense -- if not, assume we're looking at an array that
         # is 3D and cross your fingers
         npart = len(
-            representative_hdf[self._family_to_group_map[fam][0]]["ParticleIDs"]
+            representative_hdf[self._family_to_group_map[fam][0]][self._size_from_hdf5_key]
         )
 
         if len(representative_dset) != npart:
