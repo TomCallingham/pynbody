@@ -376,8 +376,6 @@ class HDFArrayLoader:
 
     def __init_file_map(self):
         """Initialize the file map for particle types and families"""
-        print("In init file map!")
-        print(self._all_families)
 
         family_slice_start = 0
 
@@ -708,9 +706,6 @@ class GadgetHDFSnap(SimSnap):
             yield from self._hdf_files.iter_particle_groups_with_name(hdf_family_name)
 
     def __init_file_map(self, take):
-        print("In GadgetHDFSNAP __init_file_map")
-        print("self._families_ordered()=")
-        print(self._families_ordered())
         self._array_loader = HDFArrayLoader(
             self._hdf_files, self._families_ordered(), self._family_to_group_map, take
         )
@@ -951,7 +946,6 @@ class GadgetHDFSnap(SimSnap):
         if "VarDescription" not in hdfattrs:
             warnings.warn("Unable to infer units from HDF attributes")
             return units.NoUnit()
-        print("In get_uits from hdf_attr in gadget. Am i getting the scale correct?")
 
         VarDescription = str(hdfattrs["VarDescription"])
         CGSConversionFactor = float(hdfattrs["CGSConversionFactor"])
